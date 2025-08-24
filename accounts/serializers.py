@@ -6,7 +6,7 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from .models import Profile
-
+from .models import Follow
 
 User = get_user_model()
 
@@ -144,3 +144,26 @@ class ChangePasswordSerializer(serializers.Serializer):
 class LogoutSerializer(serializers.Serializer):
     """Serializer for logging out and blacklisting refresh token."""
     refresh = serializers.CharField()
+
+
+
+
+# -------------------------------------------------------------------
+# FOLLOW SYSTEM
+# -------------------------------------------------------------------
+
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = ["id", "follower", "following", "created_at"]
+        read_only_fields = ["follower", "created_at"]
+
+class UserSerializer(serializers.ModelSerializer):
+    followers_count = serializers.IntegerField(source="followers.count", read_only=True)
+    following_count = serializers.IntegerField(source="following.count", read_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "followers_count", "following_count"]
