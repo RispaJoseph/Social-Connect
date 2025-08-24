@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from .models import Profile
 from .models import Follow
+from posts.models import Post 
 
 User = get_user_model()
 
@@ -50,14 +51,25 @@ class ProfileSerializer(serializers.ModelSerializer):
             "followers_count", "following_count", "posts_count",
         ]
 
+    # def get_followers_count(self, obj):
+    #     return 0  # placeholder until follower system is implemented
+
+    # def get_following_count(self, obj):
+    #     return 0  # placeholder
+
+    # def get_posts_count(self, obj):
+    #     return 0  # placeholder
+
+
     def get_followers_count(self, obj):
-        return 0  # placeholder until follower system is implemented
+        return obj.followers_count   # use property from Profile model
 
     def get_following_count(self, obj):
-        return 0  # placeholder
+        return obj.following_count   # use property from Profile model
 
     def get_posts_count(self, obj):
-        return 0  # placeholder
+        return Post.objects.filter(author=obj.user).count()
+    
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -76,14 +88,24 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "followers_count", "following_count", "posts_count",
         ]
 
+    # def get_followers_count(self, obj):
+    #     return 0  # placeholder
+
+    # def get_following_count(self, obj):
+    #     return 0  # placeholder
+
+    # def get_posts_count(self, obj):
+    #     return 0  # placeholder
+
+
     def get_followers_count(self, obj):
-        return 0  # placeholder
+        return obj.followers_count
 
     def get_following_count(self, obj):
-        return 0  # placeholder
+        return obj.following_count
 
     def get_posts_count(self, obj):
-        return 0  # placeholder
+        return Post.objects.filter(author=obj.user).count()
 
 
 # -------------------------------------------------------------------

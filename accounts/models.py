@@ -48,24 +48,36 @@ class Profile(models.Model):
         default="public"
     )
 
-    followers = models.ManyToManyField(
-        User, related_name="following_profiles", blank=True
-    )
+    # followers = models.ManyToManyField(
+    #     User, related_name="following_profiles", blank=True
+    # )
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
 
+    # @property
+    # def followers_count(self):
+    #     return 0
+
+    # @property
+    # def following_count(self):
+    #     return 0
+
+
     @property
     def followers_count(self):
-        return 0
+        return Follow.objects.filter(following=self.user).count()
 
     @property
     def following_count(self):
-        return 0
+        return Follow.objects.filter(follower=self.user).count()
 
-    @property
-    def posts_count(self):
-        return 0
+    # @property
+    # def posts_count(self):
+    #     return 0
+
+    def get_post_count(self, obj):
+        return obj.posts.count()
     
 
 
