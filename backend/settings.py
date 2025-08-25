@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "posts",
     "notifications.apps.NotificationsConfig",
+    "adminpanel",
 ]
 
 MIDDLEWARE = [
