@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     # Apps
     "accounts.apps.AccountsConfig",
     "posts",
+    "notifications.apps.NotificationsConfig",
 ]
 
 MIDDLEWARE = [
