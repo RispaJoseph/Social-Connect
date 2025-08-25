@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Post
+from .models import Post, Like, Comment
 from PIL import Image
 from supabase import create_client
 import os
@@ -10,6 +10,11 @@ class PostSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(write_only=True, required=False)
     image_url = serializers.URLField(required=False)
 
+    # ✅ Add these so DRF knows to use your methods
+    is_liked = serializers.SerializerMethodField()
+    like_count = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+
     CATEGORY_CHOICES = ["general", "announcement", "question"]
 
     class Meta:
@@ -17,10 +22,13 @@ class PostSerializer(serializers.ModelSerializer):
         fields = [
             "id", "content", "author", "author_username",
             "image", "image_url", "category", "is_active",
-            "like_count", "comment_count", "created_at", "updated_at"
+            "like_count", "comment_count", "is_liked",
+            "created_at", "updated_at"
         ]
-        read_only_fields = ["author", "like_count", "comment_count", "is_active",
-                            "image_url", "created_at", "updated_at"]
+        read_only_fields = [
+            "author", "like_count", "comment_count", "is_active",
+            "image_url", "created_at", "updated_at"
+        ]
 
     def validate(self, attrs):
         image = attrs.get("image")
@@ -28,11 +36,9 @@ class PostSerializer(serializers.ModelSerializer):
         content = attrs.get("content")
         category = attrs.get("category", "general")
 
-        # Ensure at least one or none is provided
         if image and url:
             raise serializers.ValidationError("Provide either an image file or image URL, not both.")
 
-        # Validate image
         if image:
             max_size = 2 * 1024 * 1024
             if image.size > max_size:
@@ -44,11 +50,9 @@ class PostSerializer(serializers.ModelSerializer):
             except IOError:
                 raise serializers.ValidationError("Invalid image file.")
 
-        # Trim content to 280 characters
         if content:
             attrs["content"] = content[:280]
 
-        # Validate category
         if category not in self.CATEGORY_CHOICES:
             raise serializers.ValidationError(
                 {"category": f"Invalid category. Choose from {self.CATEGORY_CHOICES}"}
@@ -75,3 +79,45 @@ class PostSerializer(serializers.ModelSerializer):
 
         post.save()
         return post
+
+    # ✅ These methods will now be called automatically
+    def get_like_count(self, obj):
+        return obj.likes.count()
+
+    def get_comment_count(self, obj):
+        return obj.comments.filter(is_active=True).count()
+
+    def get_is_liked(self, obj):
+        user = self.context.get("request").user
+        if user and user.is_authenticated:
+            return obj.likes.filter(user=user).exists()
+        return False
+
+    
+
+class LikeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Like
+        fields = ["id", "user", "post", "created_at"]
+        read_only_fields = ["user", "post", "created_at"]
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    author = serializers.ReadOnlyField(source="author.username")
+
+    class Meta:
+        model = Comment
+        fields = ["id", "content", "author", "post", "created_at"]
+        read_only_fields = ["id", "post", "author", "created_at"]
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        validated_data["author"] = request.user
+        comment = super().create(validated_data)
+
+        # increment post comment_count
+        post = comment.post
+        post.comment_count = post.comments.count()
+        post.save(update_fields=["comment_count"])
+
+        return comment
