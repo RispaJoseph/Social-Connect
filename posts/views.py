@@ -1,36 +1,56 @@
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
+from rest_framework import generics, permissions
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+
+
+from django.db.models import Q
+from django.conf import settings
+
+
 from .models import Post, Like, Comment
 from .serializers import PostSerializer, LikeSerializer, CommentSerializer
-from rest_framework.exceptions import PermissionDenied
-from django.db.models import Q
 from .pagination import FeedPagination
+from .supabase_service import upload_image
 
-class PostPagination(PageNumberPagination):
-    page_size = 10  # number of posts per page
+import time
+
+
+
+class PostPagination(generics.ListAPIView):
+    page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 50
+
+from rest_framework import generics, permissions
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+from .models import Post, Like, Comment
+from .serializers import PostSerializer, LikeSerializer, CommentSerializer
+from .pagination import FeedPagination
+from .supabase_service import upload_image
+import time
 
 class PostListCreateView(generics.ListCreateAPIView):
     queryset = Post.objects.filter(is_active=True).order_by('-created_at')
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    pagination_class = PostPagination
+    pagination_class = FeedPagination
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        post = serializer.save(author=self.request.user)
 
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        image = self.request.FILES.get("image")
+        if image:
+            file_bytes = image.read()
+            filename = f"posts/{post.id}_{int(time.time())}_{image.name}"
+
+            # Upload and get public URL
+            public_url = upload_image(file_bytes, filename, image.content_type)
+            post.image_url = public_url
+            post.save(update_fields=["image_url"])
+
+
 
 
 class PostRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
@@ -50,31 +70,30 @@ class PostRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         instance.save()
 
 
-
-class LikePostView(APIView):
+class LikePostView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, post_id):
         post = Post.objects.get(id=post_id)
         like, created = Like.objects.get_or_create(user=request.user, post=post)
         if not created:
-            return Response({"detail": "Already liked"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Already liked"}, status=400)
         post.like_count += 1
         post.save()
-        return Response({"detail": "Post liked"}, status=status.HTTP_201_CREATED)
+        return Response({"detail": "Post liked"}, status=201)
 
     def delete(self, request, post_id):
         post = Post.objects.get(id=post_id)
         like = Like.objects.filter(user=request.user, post=post).first()
         if not like:
-            return Response({"detail": "Not liked yet"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Not liked yet"}, status=400)
         like.delete()
         post.like_count -= 1
         post.save()
-        return Response({"detail": "Post unliked"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "Post unliked"}, status=204)
 
 
-class LikeStatusView(APIView):
+class LikeStatusView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, post_id):
@@ -83,7 +102,6 @@ class LikeStatusView(APIView):
         return Response({"liked": liked})
 
 
-# --- Comment Views ---
 class CommentListCreateView(generics.ListCreateAPIView):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
@@ -108,17 +126,15 @@ class CommentDeleteView(generics.DestroyAPIView):
     def delete(self, request, *args, **kwargs):
         comment = self.get_object()
         if comment.author != request.user:
-            return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "Not allowed"}, status=403)
 
         # Decrease comment count before deleting
         post = comment.post
         response = super().delete(request, *args, **kwargs)
-
         post.comment_count = post.comments.filter(is_active=True).count()
         post.save(update_fields=["comment_count"])
-
         return response
-    
+
 
 class FeedView(generics.ListAPIView):
     serializer_class = PostSerializer
@@ -127,9 +143,7 @@ class FeedView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # Get users the current user follows
         following_users = user.following.values_list("following", flat=True)
-        # Posts from followed users + own posts
         return Post.objects.filter(
             Q(author__in=following_users) | Q(author=user)
         ).order_by("-created_at")

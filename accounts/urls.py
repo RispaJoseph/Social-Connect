@@ -1,6 +1,8 @@
 from django.urls import path
+from .redirects import reset_redirect
 from .views import (
-    RegisterView, UserProfileView, PublicProfileView,
+    RegisterView, UserProfileView, PublicProfileView, LoginView, 
+    VerifyEmailView,
     PasswordResetView, PasswordResetConfirmView,
     ChangePasswordView, LogoutView,
     FollowUserView, UnfollowUserView, FollowersListView, FollowingListView
@@ -12,9 +14,11 @@ app_name = "accounts"
 urlpatterns = [
     # Authentication
     path("register/", RegisterView.as_view(), name="register"),
-    path("login/", TokenObtainPairView.as_view(), name="login"),
+    path("login/", LoginView.as_view(), name="login"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("logout/", LogoutView.as_view(), name="logout"),
+
+    path("verify-email/<uid>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
 
     # User Profiles
     path("me/", UserProfileView.as_view(), name="my_profile"),
@@ -24,6 +28,7 @@ urlpatterns = [
     path("password-reset/", PasswordResetView.as_view(), name="password_reset"),
     path("password-reset-confirm/<uidb64>/<token>/", PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
+    path("password-reset-confirm/<uidb64>/<token>/", reset_redirect, name="reset-redirect"),
 
     # Follow System
     path("follow/<int:user_id>/", FollowUserView.as_view(), name="follow-user"),

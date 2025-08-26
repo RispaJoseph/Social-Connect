@@ -2,8 +2,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.encoding import smart_str, DjangoUnicodeDecodeError
-from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import smart_bytes
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.db.models import Q
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 
 from .models import Profile
 from .models import Follow
@@ -17,7 +21,6 @@ User = get_user_model()
 # -------------------------------------------------------------------
 
 class UserRegisterSerializer(serializers.ModelSerializer):
-    """Serializer for user registration."""
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
     class Meta:
@@ -25,13 +28,43 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         fields = ("username", "email", "first_name", "last_name", "password")
 
     def create(self, validated_data):
-        return User.objects.create_user(
+        # Create inactive user initially
+        user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
             password=validated_data["password"],
+            # is_active=False  # user inactive until email verification
+            is_active=True
         )
+
+        # Generate email verification token
+        token = PasswordResetTokenGenerator().make_token(user)
+        uid = urlsafe_base64_encode(smart_bytes(user.id))
+        verification_link = f"http://localhost:3000/verify-email/{uid}/{token}/"
+
+        # Print verification link to console (you can send via email in production)
+        print(f"Email verification link for {user.email}: {verification_link}")
+
+        return user
+
+    
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Allow login using username OR email."""
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        return token
+
+    def validate(self, attrs):
+        username_or_email = attrs.get("username")
+        password = attrs.get("password")
+        user = User.objects.filter(Q(username=username_or_email) | Q(email=username_or_email)).first()
+        if user and user.check_password(password):
+            attrs["username"] = user.username  # required by SimpleJWT
+        return super().validate(attrs)
 
 
 # -------------------------------------------------------------------

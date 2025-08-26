@@ -1,16 +1,21 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
-from django.utils.encoding import force_str, force_bytes
+from django.utils.encoding import force_str, force_bytes, smart_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.conf import settings
+from django.contrib.sites.shortcuts import get_current_site
+from django.urls import reverse
+from .utils import email_verification_token
 
 from rest_framework import generics, permissions, status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 
 from .models import Profile
 from .models import Follow
@@ -18,30 +23,74 @@ from .serializers import (
     UserRegisterSerializer, ProfileSerializer, UserProfileSerializer,
     PasswordResetSerializer, PasswordResetConfirmSerializer,
     ChangePasswordSerializer, LogoutSerializer,
-    FollowSerializer, UserSerializer
+    FollowSerializer, UserSerializer, CustomTokenObtainPairSerializer
 )
 
 User = get_user_model()
 
 
-# --------------------------
-# USER REGISTRATION & AUTH
-# --------------------------
-
+# ---------------- REGISTER ----------------
 class RegisterView(generics.CreateAPIView):
-    """Register a new user."""
-    queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
+        return Response(
+            {"detail": "Registration successful! Please check your email to verify your account."},
+            status=status.HTTP_201_CREATED,
+        )
+
+# ---------------- LOGIN ----------------
 class LoginView(TokenObtainPairView):
-    """User login with JWT."""
-    pass
+    serializer_class = CustomTokenObtainPairSerializer
+    permission_classes = [AllowAny]
 
 
 class TokenRefreshViewCustom(TokenRefreshView):
     """Refresh JWT token."""
     pass
+
+
+
+def send_verification_email(user, request):
+    uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+    token = email_verification_token.make_token(user)
+    current_site = get_current_site(request).domain
+    relative_link = reverse("verify-email", kwargs={"uidb64": uidb64, "token": token})
+    absurl = f"http://localhost:3000{relative_link}"  # frontend URL for verification page
+    email_body = f"Hi {user.username},\nUse this link to verify your email:\n{absurl}"
+    send_mail(
+        "Verify your SocialConnect account",
+        email_body,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+
+
+
+class VerifyEmailView(APIView):
+    """
+    Activate user account via email verification link.
+    URL: /api/auth/verify-email/<uid>/<token>/
+    """
+
+    def get(self, request, uid, token):
+        try:
+            uid = smart_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(id=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({"detail": "Invalid UID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if PasswordResetTokenGenerator().check_token(user, token):
+            user.is_active = True
+            user.save()
+            return Response({"detail": "Email verified successfully. You can now log in."}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # --------------------------
@@ -69,8 +118,9 @@ class PublicProfileView(generics.RetrieveAPIView):
 # PASSWORD MANAGEMENT
 # --------------------------
 
+FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+
 class PasswordResetView(APIView):
-    """Send password reset link to user's email."""
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -86,36 +136,41 @@ class PasswordResetView(APIView):
         token_generator = PasswordResetTokenGenerator()
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         token = token_generator.make_token(user)
-        reset_link = f"http://127.0.0.1:8000/api/auth/password-reset-confirm/{uidb64}/{token}/"
 
+        # ✅ FRONTEND link (React route)
+        reset_link = f"{FRONTEND_URL}/reset-password/{uidb64}/{token}/"
+
+        # Send email or print in console during dev
         send_mail(
             subject="Password Reset Request",
             message=f"Click the link to reset your password: {reset_link}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
+        print("Password reset link:", reset_link)  # dev convenience
 
         return Response({"message": "Password reset link sent to email"})
 
 
 class PasswordResetConfirmView(APIView):
-    """Confirm password reset using token and set new password."""
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, uidb64, token):
-        serializer = PasswordResetConfirmSerializer(data={
-            "uidb64": uidb64,
-            "token": token,
-            "new_password": request.data.get("password")
-        })
+        # copy incoming body and inject uid/token from URL
+        data = request.data.copy()
+        data["uidb64"] = uidb64
+        data["token"] = token
+
+        serializer = PasswordResetConfirmSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
+        # Optional: you can keep the logic here or rely on serializer.save()
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = User.objects.get(pk=uid)
         user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        return Response({"message": "Password has been reset successfully"})
+        return Response({"message": "Password has been reset successfully"}, status=status.HTTP_200_OK)
 
 
 class ChangePasswordView(APIView):

@@ -3,14 +3,20 @@ from .models import Post, Like, Comment
 from PIL import Image
 from supabase import create_client
 import os
+import time
+from django.conf import settings
+from .supabase_service import upload_image
+from accounts.serializers import ProfileSerializer
+
 
 
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source="author.username", read_only=True)
-    image = serializers.ImageField(write_only=True, required=False)
-    image_url = serializers.URLField(required=False)
+    image = serializers.SerializerMethodField()  
+    author_profile = ProfileSerializer(source="author.profile", read_only=True)
+    
 
-    # ✅ Add these so DRF knows to use your methods
+    # ✅ Computed fields
     is_liked = serializers.SerializerMethodField()
     like_count = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
@@ -20,27 +26,23 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            "id", "content", "author", "author_username",
-            "image", "image_url", "category", "is_active",
+            "id", "content", "author", "author_username", "author_profile",
+            "image", "category", "is_active",
             "like_count", "comment_count", "is_liked",
-            "created_at", "updated_at"
+            "created_at", "updated_at",
         ]
         read_only_fields = [
             "author", "like_count", "comment_count", "is_active",
-            "image_url", "created_at", "updated_at"
+            "created_at", "updated_at",
         ]
 
     def validate(self, attrs):
-        image = attrs.get("image")
-        url = attrs.get("image_url")
+        image = self.context["request"].FILES.get("image")  # ✅ pick file from request.FILES
         content = attrs.get("content")
         category = attrs.get("category", "general")
 
-        if image and url:
-            raise serializers.ValidationError("Provide either an image file or image URL, not both.")
-
         if image:
-            max_size = 2 * 1024 * 1024
+            max_size = 2 * 1024 * 1024  # 2 MB
             if image.size > max_size:
                 raise serializers.ValidationError("Image size must be <= 2MB.")
             try:
@@ -51,7 +53,7 @@ class PostSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Invalid image file.")
 
         if content:
-            attrs["content"] = content[:280]
+            attrs["content"] = content[:280]  # Trim to 280 chars
 
         if category not in self.CATEGORY_CHOICES:
             raise serializers.ValidationError(
@@ -61,26 +63,27 @@ class PostSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        image = validated_data.pop("image", None)
-        image_url = validated_data.pop("image_url", None)
+        request = self.context["request"]
+        image = request.FILES.get("image")
+        
+        # Set author from request
+        validated_data["author"] = request.user
         post = Post.objects.create(**validated_data)
 
         if image:
-            supabase_url = os.getenv("SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_KEY")
-            supabase = create_client(supabase_url, supabase_key)
+            filename = f"posts/{post.id}_{int(time.time())}_{image.name}"
+            file_bytes = image.read()
+            public_url = upload_image(file_bytes, filename, image.content_type)
+            post.image_url = public_url
+            post.save(update_fields=["image_url"])
 
-            filename = f"posts/{post.id}_{image.name}"
-            supabase.storage.from_("posts").upload(filename, image)
-            image_url_data = supabase.storage.from_("posts").get_public_url(filename)
-            post.image_url = image_url_data.public_url
-        elif image_url:
-            post.image_url = image_url
-
-        post.save()
         return post
 
-    # ✅ These methods will now be called automatically
+
+    # ✅ SerializerMethodFields
+    def get_image(self, obj):
+        return obj.image_url if obj.image_url else None
+
     def get_like_count(self, obj):
         return obj.likes.count()
 
@@ -92,7 +95,6 @@ class PostSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated:
             return obj.likes.filter(user=user).exists()
         return False
-
     
 
 class LikeSerializer(serializers.ModelSerializer):

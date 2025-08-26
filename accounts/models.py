@@ -1,6 +1,5 @@
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
-from django.contrib.auth.models import User
 from django.db import models
 from django.conf import settings
 
@@ -17,12 +16,13 @@ class User(AbstractUser):
     )
     email = models.EmailField(unique=True)
 
+    # New: default inactive
+    is_active = models.BooleanField(default=False)
+
     REQUIRED_FIELDS = ["email"]
 
     def __str__(self):
         return self.username
-
-
 
 
 
@@ -48,21 +48,8 @@ class Profile(models.Model):
         default="public"
     )
 
-    # followers = models.ManyToManyField(
-    #     User, related_name="following_profiles", blank=True
-    # )
-
     def __str__(self):
         return f"{self.user.username}'s Profile"
-
-    # @property
-    # def followers_count(self):
-    #     return 0
-
-    # @property
-    # def following_count(self):
-    #     return 0
-
 
     @property
     def followers_count(self):
@@ -72,13 +59,8 @@ class Profile(models.Model):
     def following_count(self):
         return Follow.objects.filter(follower=self.user).count()
 
-    # @property
-    # def posts_count(self):
-    #     return 0
-
     def get_post_count(self, obj):
         return obj.posts.count()
-    
 
 
 # --------------------------
