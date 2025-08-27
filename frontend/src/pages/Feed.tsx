@@ -1,8 +1,11 @@
 // src/pages/Feed.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
 import API from "../api/axios";
 
 type Visibility = "public" | "private" | "followers_only";
+type PostCategory = "general" | "announcement" | "question";
 
 type Profile = {
   id: number;
@@ -17,8 +20,6 @@ type Profile = {
   following_count?: number;
 };
 
-type ProfileCache = Record<number, Profile | { error: number }>;
-
 type Post = {
   id: number;
   author: number;
@@ -28,6 +29,7 @@ type Post = {
   like_count: number;
   comment_count: number;
   created_at: string;
+  category?: PostCategory;
   author_profile?: {
     avatar_url?: string | null;
     bio?: string;
@@ -39,24 +41,173 @@ type Post = {
 const DEFAULT_AVATAR =
   "https://ui-avatars.com/api/?name=U&background=E2E8F0&color=334155";
 
+const CATEGORY_OPTIONS: { value: PostCategory; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "announcement", label: "Announcement" },
+  { value: "question", label: "Question" },
+];
+
+// ----------------------
+// Inline Post Composer
+// ----------------------
+function PostComposer({ onCreated }: { onCreated: (post: Post) => void }) {
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState<PostCategory>("general");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const remaining = 280 - content.length;
+
+  const onFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const f = e.target.files?.[0] ?? null;
+    if (!f) return setFile(null);
+    const allowed = ["image/jpeg", "image/png"];
+    if (!allowed.includes(f.type)) {
+      setError("Only JPEG and PNG images are allowed.");
+      return;
+    }
+    if (f.size > 2 * 1024 * 1024) {
+      setError("Image too large (max 2MB).");
+      return;
+    }
+    setError("");
+    setFile(f);
+  };
+
+  const submit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!content.trim()) return setError("Write something…");
+    if (content.length > 280) return setError("Post exceeds 280 characters.");
+
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("content", content);
+      fd.append("category", category);
+      if (file) fd.append("upload_image", file);
+      await API.post("/posts/", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      // If your backend requires new posts to be active to show in lists:
+      // fd.append("is_active", "true"); // <-- UNCOMMENT ONLY if your model has this field
+
+      const res = await API.post<Post>("/posts/", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      console.log("[Create] response post:", res.data);
+      onCreated(res.data);
+      setContent("");
+      setCategory("general");
+      setFile(null);
+    } catch (err: any) {
+      console.error(err?.response?.data || err?.message);
+      setError(err?.response?.data?.detail || "Failed to create post.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="rounded-xl p-4 border shadow-sm bg-white mb-4">
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        maxLength={280}
+        rows={3}
+        placeholder="What's happening?"
+        className="w-full p-3 border rounded-lg"
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="text-sm">
+          Category:{" "}
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as PostCategory)}
+            className="border rounded px-2 py-1"
+          >
+            {CATEGORY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <input
+          type="file"
+          accept="image/jpeg,image/png"
+          onChange={onFileChange}
+          className="text-sm"
+        />
+
+        <span className={`ml-auto text-sm ${remaining < 0 ? "text-red-600" : "text-gray-500"}`}>
+          {remaining} remaining
+        </span>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+        >
+          {loading ? "Posting..." : "Post"}
+        </button>
+      </div>
+
+      {file && (
+        <div className="text-sm text-gray-600 mt-2">
+          Selected: {file.name} ({Math.round(file.size / 1024)} KB)
+        </div>
+      )}
+      {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+    </form>
+  );
+}
+
+// ----------------------
+// Feed Page
+// ----------------------
 const Feed: React.FC = () => {
+  const navigate = useNavigate();
+
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>("");
 
-  // avatar upload state
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string>("");
 
-  // posts + author profile cache
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
-  const [profiles, setProfiles] = useState<ProfileCache>({});
+
+  // my posts count
+  const [myPostsCount, setMyPostsCount] = useState<number | null>(null);
 
   const visibleName = useMemo(() => myProfile?.username ?? "—", [myProfile]);
+
+  // If no token, go to login early
+  useEffect(() => {
+    const token = (() => {
+      try {
+        return localStorage.getItem("accessToken");
+      } catch {
+        return null;
+      }
+    })();
+    if (!token) navigate("/login");
+  }, [navigate]);
+
+  // Stable handler for 401s
+  const handleAuthError = useCallback(
+    (e: any) => {
+      if (e?.response?.status === 401) navigate("/login");
+    },
+    [navigate]
+  );
 
   // -------- API calls --------
   const fetchProfile = useCallback(async () => {
@@ -65,48 +216,85 @@ const Feed: React.FC = () => {
       setMyProfile(res.data);
     } catch (e: any) {
       console.error("Failed to fetch profile:", e?.response?.data || e?.message);
+      handleAuthError(e);
     }
-  }, []);
+  }, [handleAuthError]);
 
   const fetchPosts = useCallback(async () => {
+    setLoadingPosts(true);
     try {
-      setLoadingPosts(true);
-      const res = await API.get<Post[]>("/posts/");
-      setPosts(Array.isArray(res.data) ? res.data : []);
+      const pickResults = (data: any): Post[] =>
+        Array.isArray(data) ? data : (data?.results ?? []);
+
+      // A) personalized feed
+      const feedRes = await API.get<any>("/posts/feed/", {
+        params: { page: 1, page_size: 10, ordering: "-created_at" },
+      });
+      const feedItems = pickResults(feedRes.data);
+      console.log("[List A] /posts/feed ->", feedRes.data);
+
+      if (feedItems && feedItems.length > 0) {
+        setPosts(feedItems);
+        return;
+      }
+
+      // B) all posts
+      const allRes = await API.get<any>("/posts/", {
+        params: { page: 1, page_size: 10, ordering: "-created_at" },
+      });
+      const allItems = pickResults(allRes.data);
+      console.log("[List B] /posts ->", allRes.data);
+
+      if (allItems && allItems.length > 0) {
+        setPosts(allItems);
+        return;
+      }
+
+      // C) my posts by numeric id (if profile loaded)
+      if (myProfile?.id) {
+        const mineRes = await API.get<any>("/posts/", {
+          params: { author: myProfile.id, page: 1, page_size: 10, ordering: "-created_at" },
+        });
+        const mineItems = pickResults(mineRes.data);
+        console.log("[List C] /posts?author=", myProfile.id, "->", mineRes.data);
+
+        setPosts(mineItems || []);
+        return;
+      }
+
+      setPosts([]);
     } catch (e: any) {
-      console.error("Failed to fetch posts:", e?.response?.data || e?.message);
+      console.error("[List] error:", e?.response?.data || e?.message);
+      handleAuthError(e);
     } finally {
       setLoadingPosts(false);
     }
-  }, []);
+  }, [handleAuthError, myProfile?.id]);
 
-  // fetch missing author profiles (client-side join)
-  const hydrateAuthorProfiles = useCallback(
-    async (sourcePosts: Post[]) => {
-      const authorIds = sourcePosts.map((p) => p.author);
-      const unique = Array.from(new Set(authorIds));
-      const missing = unique.filter((uid) => profiles[uid] === undefined);
-      if (missing.length === 0) return;
+  // fetch only the count of my posts (numeric id only) + log
+  const fetchMyPostsCount = useCallback(
+    async (userId: number) => {
+      try {
+        const res = await API.get<{ count?: number; results?: any[] }>("/posts/", {
+          params: { author: userId, page: 1, page_size: 1 },
+        });
+        console.log("[Count] /posts?author=", userId, "->", res.data);
 
-      const results = await Promise.all(
-        missing.map(async (uid) => {
-          try {
-            const res = await API.get<Profile>(`/users/${uid}/`);
-            return [uid, res.data] as const;
-          } catch (err: any) {
-            const status = err?.response?.status ?? 0;
-            return [uid, { error: status }] as const; // 403/404/etc
-          }
-        })
-      );
+        const cnt =
+          typeof res.data?.count === "number"
+            ? res.data.count
+            : Array.isArray(res.data)
+            ? res.data.length
+            : (res.data?.results?.length ?? 0);
 
-      setProfiles((prev) => {
-        const copy: ProfileCache = { ...prev };
-        for (const [uid, prof] of results) copy[uid] = prof as any;
-        return copy;
-      });
+        setMyPostsCount(cnt);
+      } catch (e: any) {
+        console.error("[Count] error:", e?.response?.data || e?.message);
+        handleAuthError(e);
+        setMyPostsCount(null);
+      }
     },
-    [profiles]
+    [handleAuthError]
   );
 
   useEffect(() => {
@@ -114,9 +302,12 @@ const Feed: React.FC = () => {
     fetchPosts();
   }, [fetchProfile, fetchPosts]);
 
+  // trigger count after profile is known
   useEffect(() => {
-    if (posts.length) hydrateAuthorProfiles(posts);
-  }, [posts, hydrateAuthorProfiles]);
+    if (myProfile?.id) {
+      fetchMyPostsCount(myProfile.id);
+    }
+  }, [myProfile?.id, fetchMyPostsCount]);
 
   // -------- Save profile (left pane form) --------
   const onSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -140,6 +331,7 @@ const Feed: React.FC = () => {
     } catch (err: any) {
       console.error(err.response?.data || err.message);
       setSaveError("Failed to save profile");
+      handleAuthError(err);
     } finally {
       setSaving(false);
     }
@@ -150,21 +342,13 @@ const Feed: React.FC = () => {
     setUploadMsg("");
     const file = e.target.files?.[0] || null;
     setAvatarFile(file || null);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setAvatarPreview(url);
-    } else {
-      setAvatarPreview(null);
-    }
+    if (file) setAvatarPreview(URL.createObjectURL(file));
+    else setAvatarPreview(null);
   };
 
   const onUploadAvatar = async () => {
-    if (!avatarFile) {
-      setUploadMsg("Please choose an image first.");
-      return;
-    }
+    if (!avatarFile) return setUploadMsg("Please choose an image first.");
 
-    // optional client-side validations
     const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
     if (!allowed.has(avatarFile.type)) {
       setUploadMsg("Please upload a JPG/PNG/WebP image.");
@@ -192,6 +376,7 @@ const Feed: React.FC = () => {
     } catch (err: any) {
       console.error(err.response?.data || err.message);
       setUploadMsg("Failed to upload avatar");
+      handleAuthError(err);
     } finally {
       setUploadingAvatar(false);
     }
@@ -200,34 +385,20 @@ const Feed: React.FC = () => {
   // -------- Logout --------
   const onLogout = () => {
     try {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
     } catch {}
     setMyProfile(null);
-    // Adjust this path if your login route is different
-    window.location.href = "/Login";
+    window.location.href = "/login";
   };
 
   // -------- Render helpers --------
   const renderAuthorAvatar = (post: Post) => {
-    const cached = profiles[post.author] as Profile | { error: number } | undefined;
-    const blocked = (cached as any)?.error === 403;
-
-    if (blocked) {
-      return (
-        <img
-          src={DEFAULT_AVATAR}
-          alt="author"
-          className="w-10 h-10 rounded-full object-cover border"
-        />
-      );
-    }
-
-    const url =
-      post.author_profile?.avatar_url ||
-      (cached as Profile)?.avatar_url ||
-      DEFAULT_AVATAR;
-
+    const url = post.author_profile?.avatar_url || DEFAULT_AVATAR;
     return (
       <img
         src={url || DEFAULT_AVATAR}
@@ -238,10 +409,7 @@ const Feed: React.FC = () => {
   };
 
   const renderAuthorName = (post: Post) => {
-    const cached = profiles[post.author] as Profile | { error: number } | undefined;
-    const blocked = (cached as any)?.error === 403;
-    if (blocked) return "Private user";
-    return post.author_username || (cached as Profile)?.username || "—";
+    return post.author_username || "—";
   };
 
   // -------- JSX --------
@@ -405,9 +573,7 @@ const Feed: React.FC = () => {
                 </select>
               </div>
 
-              {saveError && (
-                <p className="text-sm text-red-600">{saveError}</p>
-              )}
+              {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
               <div className="pt-2 flex items-center gap-2">
                 <button
@@ -433,10 +599,12 @@ const Feed: React.FC = () => {
           {/* Stats */}
           <div className="mt-6 border-t pt-4 grid grid-cols-3 text-center">
             <div>
-              <div className="text-lg font-semibold">
-                {/* {myProfile?.posts_count ?? 0} */}
-              </div>
-              <div className="text-xs text-slate-500">Posts</div>
+              <Link to="/me/posts" className="group inline-block">
+                <div className="text-lg font-semibold group-hover:underline">
+                  {myPostsCount ?? "—"}
+                </div>
+                <div className="text-xs text-slate-500">Posts</div>
+              </Link>
             </div>
             <div>
               <div className="text-lg font-semibold">
@@ -468,6 +636,18 @@ const Feed: React.FC = () => {
       <main className="md:col-span-8 lg:col-span-6">
         <h1 className="text-2xl font-bold text-slate-900 mb-4">Feed</h1>
 
+        <PostComposer
+          onCreated={async (post) => {
+            console.log("[Create] response post:", post); // 🔍
+            // show newly created post immediately
+            setPosts((prev) => [post, ...prev]);
+            // bump my posts count in the sidebar
+            setMyPostsCount((c) => (typeof c === "number" ? c + 1 : 1));
+            // refresh feed from server as well (keeps pagination/ordering correct)
+            await fetchPosts();
+          }}
+        />
+
         {loadingPosts ? (
           <div className="text-slate-500">Loading posts…</div>
         ) : posts.length === 0 ? (
@@ -475,10 +655,7 @@ const Feed: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {posts.map((post) => (
-              <article
-                key={post.id}
-                className="rounded-xl border bg-white shadow-sm p-4"
-              >
+              <article key={post.id} className="rounded-xl border bg-white shadow-sm p-4">
                 <header className="flex items-center gap-3 mb-2">
                   {renderAuthorAvatar(post)}
                   <div>
@@ -504,6 +681,11 @@ const Feed: React.FC = () => {
                 <footer className="mt-3 text-sm text-slate-600 flex items-center gap-4">
                   <span>❤ {post.like_count}</span>
                   <span>💬 {post.comment_count}</span>
+                  {post.category && (
+                    <span className="ml-auto text-xs px-2 py-1 rounded bg-gray-100">
+                      {post.category}
+                    </span>
+                  )}
                 </footer>
               </article>
             ))}

@@ -8,6 +8,7 @@ import ChangePassword from "./pages/profile/ChangePassword";
 import Feed from "./pages/Feed";
 import MyProfile from "./pages/profile/MyProfile";
 import UserProfile from "./pages/profile/UserProfile";
+import MyPosts from "./pages/MyPosts";
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
       <Route path="/reset-password/:uid/:token" element={<ResetPasswordConfirm />} />
       <Route path="/change-password" element={<ChangePassword />} />
       <Route path="/feed" element={<Feed />} />
+
+      <Route path="/me/posts" element={<MyPosts />} />
 
       {/* Profile */}
       <Route path="/me" element={<MyProfile />} />
