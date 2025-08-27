@@ -5,16 +5,27 @@ from django.utils.encoding import force_str, force_bytes, smart_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from .utils import email_verification_token
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 
 from rest_framework import generics, permissions, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import PermissionDenied
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from supabase import create_client
+from uuid import uuid4
+import os
+
 
 
 from .models import Profile
@@ -97,9 +108,49 @@ class VerifyEmailView(APIView):
 # USER PROFILES
 # --------------------------
 
+
+supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+bucket = settings.SUPABASE_AVATAR_BUCKET
+
+class UserAvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        file_obj = request.FILES.get("avatar")
+        if not file_obj:
+            return Response({"detail": "No file 'avatar' provided."}, status=400)
+
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+        bucket = settings.SUPABASE_AVATAR_BUCKET
+
+        # Unique path per user
+        ext = os.path.splitext(file_obj.name)[1].lower()
+        key = f"user_{request.user.id}/{uuid4().hex}{ext}"
+
+        # Upload file (v2 client)
+        data = file_obj.read()
+        supabase.storage.from_(bucket).upload(
+            path=key,
+            file=data,
+            file_options={"contentType": file_obj.content_type, "upsert": "true"},
+        )
+
+        # If bucket is public:
+        public_url = supabase.storage.from_(bucket).get_public_url(key)
+
+        # Save to profile
+        profile = request.user.profile
+        profile.avatar_url = public_url
+        profile.save(update_fields=["avatar_url"])
+
+        return Response({"avatar_url": public_url}, status=200)
+    
+
+
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """Retrieve or update authenticated user's profile."""
-    serializer_class = ProfileSerializer
+    serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -107,11 +158,42 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
 
 class PublicProfileView(generics.RetrieveAPIView):
-    """Retrieve any public profile by user ID."""
-    queryset = Profile.objects.all()
-    serializer_class = ProfileSerializer
+    queryset = Profile.objects.select_related("user")
+    serializer_class = UserProfileSerializer
     permission_classes = [permissions.AllowAny]
-    lookup_field = "pk"
+    lookup_url_kwarg = "user_id"
+
+    def get_object(self):
+        user_id = self.kwargs.get(self.lookup_url_kwarg)
+        profile = get_object_or_404(self.queryset, user__id=user_id)
+
+        # Enforce visibility
+        vis = profile.visibility
+        req_user = self.request.user if self.request.user.is_authenticated else None
+
+        if vis == Profile.VIS_PRIVATE:
+            if not req_user or req_user.id != profile.user_id and not req_user.is_staff:
+                raise PermissionDenied("This profile is private.")
+        elif vis == Profile.VIS_FOLLOWERS:
+            if not req_user:
+                raise PermissionDenied("Followers only.")
+            if req_user.id != profile.user_id and not req_user.is_staff:
+                is_follower = Follow.objects.filter(following=profile.user, follower=req_user).exists()
+                if not is_follower:
+                    raise PermissionDenied("Followers only.")
+
+        return profile
+
+
+
+class AdminUserListView(generics.ListAPIView):
+    queryset = User.objects.all().select_related("profile")
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    search_fields = ["username", "email"]
+    ordering_fields = ["date_joined", "username"]
+    ordering = ["-date_joined"]
 
 
 # --------------------------

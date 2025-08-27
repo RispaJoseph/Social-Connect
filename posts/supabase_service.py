@@ -1,21 +1,28 @@
+# socialconnect/posts/supabase_service.py
 from supabase import create_client
 from django.conf import settings
+from uuid import uuid4
+import os
 
-supabase_url = settings.SUPABASE_URL
-supabase_key = settings.SUPABASE_KEY
-supabase_bucket = settings.SUPABASE_BUCKET
-supabase = create_client(supabase_url, supabase_key)
+supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+POSTS_BUCKET = getattr(settings, "SUPABASE_POSTS_BUCKET", "posts")
 
 def upload_image(file_bytes: bytes, filename: str, content_type: str) -> str:
     """
-    Uploads a file to Supabase Storage and returns the public URL as a string.
+    Upload bytes to Supabase Storage and return a public URL.
+    Assumes the POSTS bucket is public. If private, return a signed URL instead.
     """
-    supabase.storage.from_(supabase_bucket).upload(
-        filename,
-        file_bytes,
-        {"content-type": content_type, "upsert": "true"}  # must be string
+    # unique key per upload
+    ext = os.path.splitext(filename)[1].lower()
+    key = f"posts/{uuid4().hex}{ext}"
+
+    # v2 client: file_options uses 'contentType' and 'upsert'
+    supabase.storage.from_(POSTS_BUCKET).upload(
+        path=key,
+        file=file_bytes,
+        file_options={"contentType": content_type, "upsert": True},
     )
 
-    # Directly return the URL string
-    public_url = supabase.storage.from_(supabase_bucket).get_public_url(filename)
+    # Public URL (bucket must be public)
+    public_url = supabase.storage.from_(POSTS_BUCKET).get_public_url(key)
     return public_url

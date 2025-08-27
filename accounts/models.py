@@ -27,16 +27,26 @@ class User(AbstractUser):
 
 
 class Profile(models.Model):
+    VIS_PUBLIC = "public"
+    VIS_PRIVATE = "private"
+    VIS_FOLLOWERS = "followers"
+
     VISIBILITY_CHOICES = [
-        ("public", "Public"),
-        ("private", "Private"),
-        ("followers_only", "Followers Only"),
+        (VIS_PUBLIC, "Public"),
+        (VIS_PRIVATE, "Private"),
+        (VIS_FOLLOWERS, "Followers Only"),
     ]
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="profile"
+    )
+
+    visibility = models.CharField(
+        max_length=20,
+        choices=VISIBILITY_CHOICES,
+        default=VIS_PUBLIC,
     )
     bio = models.CharField(max_length=160, blank=True)
     avatar_url = models.URLField(blank=True, null=True)

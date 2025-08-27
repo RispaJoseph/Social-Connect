@@ -2,10 +2,10 @@ from django.urls import path
 from .redirects import reset_redirect
 from .views import (
     RegisterView, UserProfileView, PublicProfileView, LoginView, 
-    VerifyEmailView,
+    VerifyEmailView, UserAvatarUploadView,
     PasswordResetView, PasswordResetConfirmView,
     ChangePasswordView, LogoutView,
-    FollowUserView, UnfollowUserView, FollowersListView, FollowingListView
+    FollowUserView, UnfollowUserView, FollowersListView, FollowingListView,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -23,6 +23,8 @@ urlpatterns = [
     # User Profiles
     path("me/", UserProfileView.as_view(), name="my_profile"),
     path("<int:pk>/", PublicProfileView.as_view(), name="public_profile"),
+    path("me/avatar/", UserAvatarUploadView.as_view(), name="me-avatar"),
+
 
     # Password Management
     path("password-reset/", PasswordResetView.as_view(), name="password_reset"),

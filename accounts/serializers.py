@@ -84,14 +84,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "followers_count", "following_count", "posts_count",
         ]
 
-    # def get_followers_count(self, obj):
-    #     return 0  # placeholder until follower system is implemented
 
-    # def get_following_count(self, obj):
-    #     return 0  # placeholder
-
-    # def get_posts_count(self, obj):
-    #     return 0  # placeholder
 
 
     def get_followers_count(self, obj):
@@ -110,6 +103,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
 
+    visibility = serializers.ChoiceField(
+        choices=Profile.VISIBILITY_CHOICES, required=False
+    )
+
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     posts_count = serializers.SerializerMethodField()
@@ -117,18 +114,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            "id", "username", "email", "bio", "avatar_url", "website", "location",
+            "id", "username", "email", "bio", "avatar_url", "website", "location", "visibility",
             "followers_count", "following_count", "posts_count",
         ]
 
-    # def get_followers_count(self, obj):
-    #     return 0  # placeholder
+        read_only_fields = ["avatar_url", "followers_count", "following_count", "posts_count"]
 
-    # def get_following_count(self, obj):
-    #     return 0  # placeholder
-
-    # def get_posts_count(self, obj):
-    #     return 0  # placeholder
+    def validate_bio(self, value):
+        """Ensure bio is at most 160 characters."""
+        if value and len(value) > 160:
+            raise serializers.ValidationError("Bio must be 160 characters or fewer.")
+        return value
 
 
     def get_followers_count(self, obj):
