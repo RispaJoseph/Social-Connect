@@ -88,7 +88,7 @@ function PostComposer({ onCreated }: { onCreated: (post: Post) => void }) {
       fd.append("content", content);
       fd.append("category", category);
       if (file) fd.append("upload_image", file);
-      await API.post("/posts/", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      // await API.post("/posts/", fd, { headers: { "Content-Type": "multipart/form-data" } });
       // If your backend requires new posts to be active to show in lists:
       // fd.append("is_active", "true"); // <-- UNCOMMENT ONLY if your model has this field
 
