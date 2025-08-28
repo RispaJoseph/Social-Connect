@@ -8,21 +8,17 @@ supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_K
 POSTS_BUCKET = getattr(settings, "SUPABASE_POSTS_BUCKET", "posts")
 
 def upload_image(file_bytes: bytes, filename: str, content_type: str) -> str:
-    """
-    Upload bytes to Supabase Storage and return a public URL.
-    Assumes the POSTS bucket is public. If private, return a signed URL instead.
-    """
-    # unique key per upload
     ext = os.path.splitext(filename)[1].lower()
     key = f"posts/{uuid4().hex}{ext}"
-
-    # v2 client: file_options uses 'contentType' and 'upsert'
-    supabase.storage.from_(POSTS_BUCKET).upload(
-        path=key,
-        file=file_bytes,
-        file_options={"contentType": content_type, "upsert": True},
-    )
-
-    # Public URL (bucket must be public)
-    public_url = supabase.storage.from_(POSTS_BUCKET).get_public_url(key)
-    return public_url
+    file_options = {
+        "contentType": str(content_type or "application/octet-stream"),
+        "upsert": "true",  # string to avoid httpx header type issues
+    }
+    try:
+        supabase.storage.from_(POSTS_BUCKET).upload(
+            path=key, file=file_bytes, file_options=file_options
+        )
+    except Exception as e:
+        # Re-raise so serializer can show a user-friendly message
+        raise RuntimeError(f"Storage upload failed: {e}")
+    return supabase.storage.from_(POSTS_BUCKET).get_public_url(key)

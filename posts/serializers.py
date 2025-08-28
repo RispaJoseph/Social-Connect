@@ -1,125 +1,172 @@
 from rest_framework import serializers
 from .models import Post, Like, Comment
 from PIL import Image
-from supabase import create_client
-import os
-import time
-from django.conf import settings
+import io
+from django.core.exceptions import ValidationError
 from .supabase_service import upload_image
-from accounts.serializers import ProfileSerializer
+from django.db import transaction
 
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
+MAX_IMAGE_BYTES = 2 * 1024 * 1024  # 2MB
 
 
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source="author.username", read_only=True)
-    image = serializers.SerializerMethodField()  
-    author_profile = ProfileSerializer(source="author.profile", read_only=True)
-    
+    author_avatar = serializers.CharField(source="author.profile.avatar_url", read_only=True)
+    image = serializers.SerializerMethodField(read_only=True)
+    liked_by_me = serializers.SerializerMethodField()  # ✅ new
 
-    # ✅ Computed fields
-    is_liked = serializers.SerializerMethodField()
-    like_count = serializers.SerializerMethodField()
-    comment_count = serializers.SerializerMethodField()
-
-    CATEGORY_CHOICES = ["general", "announcement", "question"]
+    # write-only image upload field
+    upload_image = serializers.ImageField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Post
         fields = [
-            "id", "content", "author", "author_username", "author_profile",
-            "image", "category", "is_active",
-            "like_count", "comment_count", "is_liked",
-            "created_at", "updated_at",
+            "id",
+            "content",
+            "author",
+            "author_username",
+            "author_avatar",
+            "created_at",
+            "updated_at",
+            "image_url",
+            "image",
+            "upload_image",
+            "category",
+            "is_active",
+            "like_count",
+            "comment_count",
+            "liked_by_me", 
         ]
         read_only_fields = [
-            "author", "like_count", "comment_count", "is_active",
-            "created_at", "updated_at",
+            "id",
+            "author",
+            "author_username",
+            "author_avatar",
+            "created_at",
+            "updated_at",
+            "image_url",
+            "like_count",
+            "comment_count",
+            "liked_by_me",  
+            "is_active", 
         ]
 
-    def validate(self, attrs):
-        image = self.context["request"].FILES.get("image")  # ✅ pick file from request.FILES
-        content = attrs.get("content")
-        category = attrs.get("category", "general")
+    def get_image(self, obj: Post):
+        return obj.image_url
 
-        if image:
-            max_size = 2 * 1024 * 1024  # 2 MB
-            if image.size > max_size:
-                raise serializers.ValidationError("Image size must be <= 2MB.")
-            try:
-                img = Image.open(image)
-                if img.format not in ["JPEG", "PNG"]:
-                    raise serializers.ValidationError("Only JPEG and PNG are allowed.")
-            except IOError:
-                raise serializers.ValidationError("Invalid image file.")
+    def get_liked_by_me(self, obj: Post) -> bool:
+        """
+        Prefer the DB annotation (from FeedView). If not present,
+        fall back to a quick existence check for the current user.
+        """
+        annotated = getattr(obj, "liked_by_me", None)
+        if annotated is not None:
+            return bool(annotated)
 
-        if content:
-            attrs["content"] = content[:280]  # Trim to 280 chars
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous:
+            return False
+        return Like.objects.filter(post=obj, user=request.user).exists()
 
-        if category not in self.CATEGORY_CHOICES:
-            raise serializers.ValidationError(
-                {"category": f"Invalid category. Choose from {self.CATEGORY_CHOICES}"}
-            )
-
-        return attrs
+    def validate_upload_image(self, file):
+        if not file:
+            return file
+        if file.size > MAX_IMAGE_BYTES:
+            raise serializers.ValidationError("Image too large (max 2MB).")
+        content_type = getattr(file, "content_type", None) or ""
+        if content_type not in ALLOWED_IMAGE_TYPES:
+            raise serializers.ValidationError("Only JPEG and PNG images are allowed.")
+        # Pillow open to ensure it's an actual image
+        try:
+            im = Image.open(file)
+            im.verify()
+        except Exception:
+            raise serializers.ValidationError("Invalid image file.")
+        file.seek(0)
+        return file
 
     def create(self, validated_data):
-        request = self.context["request"]
-        image = request.FILES.get("image")
-        
-        # Set author from request
-        validated_data["author"] = request.user
-        post = Post.objects.create(**validated_data)
+        request = self.context.get("request")
+        user = request.user
+        upload = validated_data.pop("upload_image", None)
 
-        if image:
-            filename = f"posts/{post.id}_{int(time.time())}_{image.name}"
-            file_bytes = image.read()
-            public_url = upload_image(file_bytes, filename, image.content_type)
-            post.image_url = public_url
-            post.save(update_fields=["image_url"])
+        # Ensure we don't leave a half-created post if upload fails
+        with transaction.atomic():
+            post = Post.objects.create(author=user, is_active=True, **validated_data)
+
+            if upload:
+                content_type = getattr(upload, "content_type", "application/octet-stream")
+                file_bytes = upload.read()
+                try:
+                    public_url = upload_image(
+                        file_bytes=file_bytes,
+                        filename=upload.name,
+                        content_type=content_type,
+                    )
+                    post.image_url = public_url
+                    post.save(update_fields=["image_url"])
+                except Exception as e:
+                    # Turn storage/network errors into a 400 instead of a 500
+                    raise serializers.ValidationError(
+                        {"upload_image": f"Image upload error: {e}"}
+                    )
 
         return post
 
 
-    # ✅ SerializerMethodFields
-    def get_image(self, obj):
-        return obj.image_url if obj.image_url else None
 
-    def get_like_count(self, obj):
-        return obj.likes.count()
+    def update(self, instance: Post, validated_data):
+        upload = validated_data.pop("upload_image", None)
+        validated_data.pop("is_active", None)
 
-    def get_comment_count(self, obj):
-        return obj.comments.filter(is_active=True).count()
+        # Apply normal field updates
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
 
-    def get_is_liked(self, obj):
-        user = self.context.get("request").user
-        if user and user.is_authenticated:
-            return obj.likes.filter(user=user).exists()
-        return False
+        if upload:
+            content_type = getattr(upload, "content_type", "application/octet-stream")
+            file_bytes = upload.read()
+            try:
+                public_url = upload_image(
+                    file_bytes=file_bytes,
+                    filename=upload.name,
+                    content_type=content_type,
+                )
+                instance.image_url = public_url
+            except Exception as e:
+                raise serializers.ValidationError(
+                    {"upload_image": f"Image upload error: {e}"}
+                )
+
+        instance.save()
+        return instance
     
+
 
 class LikeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Like
-        fields = ["id", "user", "post", "created_at"]
-        read_only_fields = ["user", "post", "created_at"]
+        fields = ["id", "post", "user", "created_at"]
+        read_only_fields = ["id", "post", "user", "created_at"]
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    author = serializers.ReadOnlyField(source="author.username")
+    author_username = serializers.CharField(source="author.username", read_only=True)
 
     class Meta:
         model = Comment
-        fields = ["id", "content", "author", "post", "created_at"]
-        read_only_fields = ["id", "post", "author", "created_at"]
+        fields = ["id", "content", "author", "author_username", "post", "created_at"]
+        read_only_fields = ["id", "author", "author_username", "post", "created_at"]
 
     def create(self, validated_data):
         request = self.context.get("request")
         validated_data["author"] = request.user
         comment = super().create(validated_data)
-
-        # increment post comment_count
+        # update comment_count on post
         post = comment.post
-        post.comment_count = post.comments.count()
+        post.comment_count = post.comments.filter(is_active=True).count()
         post.save(update_fields=["comment_count"])
-
         return comment

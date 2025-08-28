@@ -7,6 +7,9 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.db.models import Q
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.conf import settings
+from django.utils.encoding import force_bytes
+
 
 
 from .models import Profile
@@ -41,8 +44,8 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
         # Generate email verification token
         token = PasswordResetTokenGenerator().make_token(user)
-        uid = urlsafe_base64_encode(smart_bytes(user.id))
-        verification_link = f"http://localhost:3000/verify-email/{uid}/{token}/"
+        uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        verification_link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/verify-email/{uidb64}/{token}/"
 
         # Print verification link to console (you can send via email in production)
         print(f"Email verification link for {user.email}: {verification_link}")
@@ -214,7 +217,9 @@ class FollowSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     followers_count = serializers.IntegerField(source="followers.count", read_only=True)
     following_count = serializers.IntegerField(source="following.count", read_only=True)
+    avatar_url = serializers.CharField(source="profile.avatar_url", read_only=True)  # ✅ add this
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "followers_count", "following_count"]
+        fields = ["id", "username", "email", "avatar_url", "followers_count", "following_count"]
+

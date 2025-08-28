@@ -12,12 +12,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from rest_framework import generics, permissions, status
+from rest_framework.generics import (
+    RetrieveAPIView,
+    ListAPIView,
+    CreateAPIView,
+    RetrieveUpdateAPIView,
+    ListAPIView,
+)
+
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied,  NotFound
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -43,6 +51,8 @@ User = get_user_model()
 # ---------------- REGISTER ----------------
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
+    permission_classes = [AllowAny]           
+    authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -69,9 +79,13 @@ class TokenRefreshViewCustom(TokenRefreshView):
 def send_verification_email(user, request):
     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
     token = email_verification_token.make_token(user)
-    current_site = get_current_site(request).domain
+
+    # URL names MUST match your urls.py pattern
     relative_link = reverse("verify-email", kwargs={"uidb64": uidb64, "token": token})
-    absurl = f"http://localhost:3000{relative_link}"  # frontend URL for verification page
+
+    FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+    absurl = f"{FRONTEND_URL}{relative_link}"
+
     email_body = f"Hi {user.username},\nUse this link to verify your email:\n{absurl}"
     send_mail(
         "Verify your SocialConnect account",
@@ -84,14 +98,11 @@ def send_verification_email(user, request):
 
 
 class VerifyEmailView(APIView):
-    """
-    Activate user account via email verification link.
-    URL: /api/auth/verify-email/<uid>/<token>/
-    """
+    permission_classes = [AllowAny]  # public
 
-    def get(self, request, uid, token):
+    def get(self, request, uidb64, token):  # <-- uidb64 must match urls.py
         try:
-            uid = smart_str(urlsafe_base64_decode(uid))
+            uid = smart_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(id=uid)
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             return Response({"detail": "Invalid UID"}, status=status.HTTP_400_BAD_REQUEST)
@@ -100,8 +111,8 @@ class VerifyEmailView(APIView):
             user.is_active = True
             user.save()
             return Response({"detail": "Email verified successfully. You can now log in."}, status=status.HTTP_200_OK)
-        else:
-            return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # --------------------------
@@ -200,7 +211,7 @@ class AdminUserListView(generics.ListAPIView):
 # PASSWORD MANAGEMENT
 # --------------------------
 
-FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
 
 class PasswordResetView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -331,18 +342,79 @@ class UnfollowUserView(APIView):
 class FollowersListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-
     def get_queryset(self):
         user = User.objects.get(id=self.kwargs["user_id"])
-        # Get actual User objects instead of IDs
-        return User.objects.filter(id__in=user.followers.values_list("follower", flat=True))
-
+        return User.objects.select_related("profile").filter(
+            id__in=user.followers.values_list("follower", flat=True)
+        )
 
 class FollowingListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-
     def get_queryset(self):
         user = User.objects.get(id=self.kwargs["user_id"])
-        # Get actual User objects instead of IDs
-        return User.objects.filter(id__in=user.following.values_list("following", flat=True))
+        return User.objects.select_related("profile").filter(
+            id__in=user.following.values_list("following", flat=True)
+        )
+
+
+
+class PublicUsersRootView(ListAPIView):
+    """
+    GET /api/users/                -> list first 50 (limited fields)
+    GET /api/users/?q=rose        -> search usernames (icontains)
+    GET /api/users/?username=rose -> exact username (returns 1 or 404)
+    """
+    permission_classes = [AllowAny]
+    serializer_class = ProfileSerializer  # minimal public serializer
+
+    def get_queryset(self):
+        qs = Profile.objects.select_related("user").filter(user__is_active=True)
+
+        username = self.request.query_params.get("username")
+        q = self.request.query_params.get("q")
+
+        if username:
+            obj = qs.filter(user__username__iexact=username).first()
+            if not obj:
+                raise NotFound("User not found.")
+            # Return a queryset with only this one object
+            return Profile.objects.filter(pk=obj.pk)
+
+        if q:
+            return qs.filter(user__username__icontains=q)[:20]
+
+        # default list (keep it small)
+        return qs.order_by("user__username")[:50]
+
+
+class PublicProfileByUsernameView(RetrieveAPIView):
+    """
+    GET /api/users/by-username/<username>/
+    """
+    permission_classes = [AllowAny]
+    serializer_class = ProfileSerializer  # public-safe fields
+
+    def get_object(self):
+        username = self.kwargs.get("username")
+        profile = get_object_or_404(
+            Profile.objects.select_related("user").filter(user__is_active=True),
+            user__username__iexact=username,
+        )
+
+        # Enforce visibility (reuse your logic)
+        vis = profile.visibility
+        req_user = self.request.user if self.request.user.is_authenticated else None
+
+        if vis == Profile.VIS_PRIVATE:
+            if not req_user or (req_user.id != profile.user_id and not req_user.is_staff):
+                raise PermissionDenied("This profile is private.")
+        elif vis == Profile.VIS_FOLLOWERS:
+            if not req_user:
+                raise PermissionDenied("Followers only.")
+            if req_user.id != profile.user_id and not req_user.is_staff:
+                is_follower = Follow.objects.filter(following=profile.user, follower=req_user).exists()
+                if not is_follower:
+                    raise PermissionDenied("Followers only.")
+
+        return profile

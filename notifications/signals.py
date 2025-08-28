@@ -24,12 +24,13 @@ def create_like_notification(sender, instance, created, **kwargs):
 def create_comment_notification(sender, instance, created, **kwargs):
     if created:
         Notification.objects.create(
-            recipient=instance.post.author,   # post owner
-            sender=instance.user,             # who commented
-            notification_type='comment',
+            recipient=instance.post.author,   
+            sender=instance.author,           
+            notification_type="comment",
             post=instance.post,
-            message=f"{instance.user.username} commented on your post"
+            message=f"{instance.author.username} commented on your post"
         )
+
 
 # Follow notification
 @receiver(post_save, sender=Follow)
