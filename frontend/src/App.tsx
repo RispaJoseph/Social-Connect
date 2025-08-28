@@ -1,35 +1,33 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Register";
-import VerifyEmail from "./pages/auth/VerifyEmail";
-import ForgotPassword from "./pages/auth/ForgotPassword";
-import ResetPasswordConfirm from "./pages/auth/ResetPasswordConfirm";
-import ChangePassword from "./pages/profile/ChangePassword";
-import Feed from "./pages/Feed";
-import MyProfile from "./pages/profile/MyProfile";
-import UserProfile from "./pages/profile/UserProfile";
-import MyPosts from "./pages/MyPosts";
+import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { useAuth } from './auth/useAuth'
+import { Avatar } from './components/Avatar'
 
-function App() {
+export default function App() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/verify-email/:uid/:token" element={<VerifyEmail />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password/:uid/:token" element={<ResetPasswordConfirm />} />
-      <Route path="/change-password" element={<ChangePassword />} />
-      <Route path="/feed" element={<Feed />} />
-
-      <Route path="/me/posts" element={<MyPosts />} />
-
-      {/* Profile */}
-      <Route path="/me" element={<MyProfile />} />
-      <Route path="/users/:id" element={<UserProfile />} />
-      <Route path="/change-password" element={<ChangePassword />} />
-    </Routes>
-  );
+    <div className="min-h-screen">
+      <header className="border-b bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-4">
+          <Link to="/" className="font-bold text-xl">SocialConnect</Link>
+          <div className="ml-auto flex items-center gap-3">
+            {user && (
+              <>
+                <Link to={`/profile/${user.id}`} className="flex items-center gap-2">
+                  <Avatar src={user.avatar_url} name={user.username} />
+                  <span className="text-sm">{user.username}</span>
+                </Link>
+                <button onClick={() => { logout(); navigate('/login'); }} className="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50">
+                  Logout
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <Outlet />
+      </main>
+    </div>
+  )
 }
-
-export default App;

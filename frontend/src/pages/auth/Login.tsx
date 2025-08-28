@@ -1,117 +1,60 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import API from "../../api/axios";
-import type { AxiosError } from "axios";
+// src/pages/auth/Login.tsx
+import { useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { login } from "../../api/auth";
+import { useAuth } from "../../auth/useAuth";
+import { toast } from "sonner";
 
-type LoginForm = {
-  username: string;
-  password: string;
-};
-
-type LoginResponse = {
-  access: string;
-  refresh?: string;
-  // add more fields if your API returns them
-};
-
-const Login: React.FC = () => {
+export default function Login() {
+  const [username, setUsername] = useState(""); // send as "username" (can be email or username)
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { setUser } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState<LoginForm>({ username: "", password: "" });
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || "/";
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting) return;
-    setError("");
-    setSubmitting(true);
-
+    setLoading(true);
     try {
-      const response = await API.post<LoginResponse>("/auth/login/", form);
-
-      const { access, refresh } = response.data || {};
-      if (!access) throw new Error("No access token returned");
-
-      // --- Single source of truth for tokens ---
-      // Clear any legacy keys you might have used before
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
-
-      // Set the keys your axios client/interceptor expects
-      localStorage.setItem("accessToken", access);
-      if (refresh) localStorage.setItem("refreshToken", refresh);
-
-      navigate("/feed");
-    } catch (err) {
-      const axErr = err as AxiosError<any>;
-      const detail =
-        axErr.response?.data?.detail ||
-        (axErr.response?.data && typeof axErr.response.data === "string"
-          ? axErr.response.data
-          : null);
-
-      if (detail === "User account is disabled.") {
-        setError("Your account is not verified. Please check your email.");
-      } else if (detail) {
-        setError(detail);
-      } else {
-        setError("Login failed. Please try again.");
-      }
+      const data = await login({ username, password });
+      setUser(data.user);
+      toast.success("Logged in");
+      navigate(from, { replace: true }); // 👈 go back to where they came from (or "/")
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Login failed");
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-white shadow rounded">
-      <h2 className="text-2xl font-bold mb-4">Login</h2>
-      {error && <p className="text-red-500 mb-2">{error}</p>}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <div className="min-h-screen grid place-items-center">
+      <form onSubmit={onSubmit} className="w-full max-w-sm bg-white p-6 rounded-2xl shadow">
+        <h1 className="text-2xl font-semibold mb-4">Welcome back</h1>
+        <label className="block text-sm mb-1">Email or username</label>
         <input
-          type="text"
-          name="username"
-          placeholder="Username or Email"
-          value={form.username}
-          onChange={handleChange}
-          className="border rounded p-2"
+          className="w-full border rounded-md px-3 py-2 mb-3"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           required
-          autoComplete="username"
         />
+        <label className="block text-sm mb-1">Password</label>
         <input
+          className="w-full border rounded-md px-3 py-2 mb-4"
           type="password"
-          name="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={handleChange}
-          className="border rounded p-2"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
-          autoComplete="current-password"
         />
-        <button
-          type="submit"
-          className="bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-60"
-          disabled={submitting}
-        >
-          {submitting ? "Logging in..." : "Login"}
+        <button className="w-full bg-black text-white rounded-md py-2 disabled:opacity-60" disabled={loading}>
+          {loading ? "Signing in..." : "Sign in"}
         </button>
+        <p className="text-sm mt-4">
+          No account? <Link to="/register" className="text-blue-600">Sign up</Link>
+        </p>
       </form>
-
-      {/* Left: New User | Right: Forgot password */}
-      <div className="mt-3 flex justify-between">
-        <Link to="/register" className="text-blue-500 hover:underline">
-          New User?
-        </Link>
-        <Link to="/forgot-password" className="text-blue-500 hover:underline">
-          Forgot password?
-        </Link>
-      </div>
     </div>
   );
-};
-
-export default Login;
+}

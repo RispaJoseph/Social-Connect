@@ -1,111 +1,110 @@
 // src/api/posts.ts
-import API from "./axios";
+import { api } from '../lib/api'
 
-export type PostCategory = "general" | "announcement" | "question";
-
+export type PostCategory = 'general' | 'announcement' | 'question'
 export interface Post {
-  id: number;
-  content: string;
-  author: number;
-  author_username: string;
-  created_at: string; // ISO
-  updated_at?: string; // ISO
-  image_url?: string | null;
-  category: PostCategory;
-  is_active: boolean;
-  like_count: number;
-  comment_count: number;
-  author_profile?: {
-    avatar_url?: string | null;
-  };
+  id: number
+  content: string
+  author: number
+  author_username: string
+  created_at: string
+  updated_at?: string
+  image_url?: string | null
+  category: PostCategory
+  is_active: boolean
+  like_count: number
+  comment_count: number
 }
 
-export interface Paginated<T> {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
+export async function getFeed(page = 1) {
+  // const { data } = await api.get('/posts/feed/', { params: { page } })
+  // return data as { results: Post[]; next?: string | null; previous?: string | null }
+  const { data } = await api.get(`/posts/feed/?page=${page}`)
+  return data
 }
 
-export interface ListPostsParams {
-  page?: number;
-  page_size?: number;
-  search?: string;
-  category?: PostCategory;
-  author?: number | "me";
+export async function createPostTextOnly(content: string, category: PostCategory = 'general') {
+  const form = new FormData()
+  form.append('content', content)
+  form.append('category', category)
+  const { data } = await api.post('/posts/', form)
+  return data as Post
 }
 
-export async function listPosts(params: ListPostsParams = {}) {
-  const res = await API.get<Paginated<Post>>("/posts/", { params });
-  return res.data;
+export async function createPost(content: string, file?: File, category: PostCategory = 'general') {
+  const form = new FormData()
+  form.append('content', content)
+  form.append('category', category)
+  if (file) form.append('upload_image', file) // ✅ must be upload_image
+  const { data } = await api.post('/posts/', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data as Post
 }
 
-export async function getPost(id: number) {
-  const res = await API.get<Post>(`/posts/${id}/`);
-  return res.data;
-}
 
-/** ---------- NEW: createPost ---------- */
-export type CreatePostPayload = {
-  content: string;
-  category?: PostCategory;
-  image?: File | null; // pass a File to upload, omit/undefined for none
-};
-
-export async function createPost(payload: CreatePostPayload) {
-  const fd = new FormData();
-  fd.append("content", payload.content);
-  if (payload.category) fd.append("category", payload.category);
-  if (payload.image instanceof File) {
-    fd.append("image", payload.image); // field name 'image' — keep consistent with backend
-  }
-  const res = await API.post<Post>("/posts/", fd, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
-}
-/** ------------------------------------- */
-
-type UpdatePayload = {
-  content?: string;
-  category?: PostCategory;
-  image?: File | null;     // File to replace image, null to remove, undefined to leave unchanged
-  remove_image?: boolean;  // optional explicit flag if your backend supports it
-};
-
-export async function updatePost(id: number, payload: UpdatePayload) {
-  const { content, category, image, remove_image } = payload;
-
-  // If image is being changed or you need to send remove flags, use FormData
-  if (image !== undefined || remove_image) {
-    const form = new FormData();
-    if (content !== undefined) form.append("content", content);
-    if (category !== undefined) form.append("category", category);
-
-    if (remove_image) {
-      form.append("remove_image", "true");
-    } else if (image instanceof File) {
-      form.append("image", image);
-    } else if (image === null) {
-      // If your backend treats empty string as remove, keep this; otherwise rely on remove_image flag
-      form.append("image", "");
-    }
-
-    const res = await API.patch<Post>(`/posts/${id}/`, form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return res.data;
-  }
-
-  // Otherwise simple JSON patch
-  const body: Record<string, any> = {};
-  if (content !== undefined) body.content = content;
-  if (category !== undefined) body.category = category;
-
-  const res = await API.patch<Post>(`/posts/${id}/`, body);
-  return res.data;
+export async function updatePost(id: number, content: string, file?: File, category?: PostCategory) {
+  const form = new FormData()
+  form.append('content', content)
+  if (category) form.append('category', category)
+  if (file) form.append('upload_image', file)
+  const { data } = await api.patch(`/posts/${id}/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data as Post
 }
 
 export async function deletePost(id: number) {
-  await API.delete(`/posts/${id}/`);
+  const { data } = await api.delete(`/posts/${id}/`)
+  return data
+}
+
+
+// --- Likes ---
+export async function likePost(postId: number) {
+  const { data } = await api.post(`/posts/${postId}/like/`)
+  return data
+}
+
+export async function unlikePost(postId: number) {
+  const { data } = await api.delete(`/posts/${postId}/like/`)
+  return data
+}
+
+export async function getLikeStatus(postId: number) {
+  const { data } = await api.get(`/posts/${postId}/like-status/`)
+  // Expecting something like { liked: boolean }
+  return data as { liked: boolean }
+}
+
+// --- Comments ---
+export type Comment = {
+  id: number
+  content: string
+  author: number
+  author_username?: string
+  created_at: string
+}
+
+export async function getComments(postId: number) {
+  const { data } = await api.get(`/posts/${postId}/comments/`)
+  // If paginated, unwrap results
+  return Array.isArray(data) ? (data as Comment[]) : ((data?.results as Comment[]) || [])
+}
+
+export async function addComment(postId: number, content: string) {
+  const { data } = await api.post(`/posts/${postId}/comments/`, { content })
+  return data as Comment
+}
+
+
+export async function deleteComment(commentId: number) {
+  const { data } = await api.delete(`/posts/comments/${commentId}/`)
+  return data
+}
+
+
+export async function getPost(postId: number) {
+  const { data } = await api.get(`/posts/${postId}/`)
+  return data as Post
 }

@@ -1,116 +1,40 @@
-import React, { useState } from "react";
-import API from "../../api/axios";
+import { useState } from 'react'
+import { register } from '../../api/auth'
+import { toast } from 'sonner'
+import { Link, useNavigate } from 'react-router-dom'
 
-const Register: React.FC = () => {
-  const [form, setForm] = useState({
-    email: "",
-    username: "",
-    first_name: "",
-    last_name: "",
-    password: "",
-  });
+export default function Register(){
+  const [form, setForm] = useState({ email:'', username:'', password:'', first_name:'', last_name:'' })
+  const [loading, setLoading] = useState(false)
+  const nav = useNavigate()
 
-  const [error, setError] = useState<string>("");
-  const [successMessage, setSuccessMessage] = useState<string>("");
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccessMessage("");
-
+  async function onSubmit(e: React.FormEvent){
+    e.preventDefault()
+    setLoading(true)
     try {
-      const response = await API.post("/auth/register/", form);
-      console.log(response.data);
-
-      // Show message instructing user to verify email
-      setSuccessMessage(
-        "Registration successful! Please check your email to verify your account. " +
-        "Copy the link printed in the console and visit it via your browser!!!."
-      );
-
-      // Clear form
-      setForm({
-        email: "",
-        username: "",
-        first_name: "",
-        last_name: "",
-        password: "",
-      });
-    } catch (err: any) {
-      console.error(err.response?.data);
-      const errorMsg =
-        err.response?.data?.detail ||
-        err.response?.data?.username?.[0] ||
-        err.response?.data?.email?.[0] ||
-        "Registration failed";
-      setError(errorMsg);
-    }
-  };
+      await register(form)
+      toast.success('Registered! Please verify your email before login.')
+      nav('/login')
+    } catch (e:any) {
+      toast.error(e?.response?.data?.detail || 'Registration failed')
+    } finally { setLoading(false) }
+  }
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-white shadow rounded">
-      <h2 className="text-2xl font-bold mb-4">Register</h2>
-
-      {error && <p className="text-red-500 mb-2">{error}</p>}
-      {successMessage && <p className="text-green-600 mb-4">{successMessage}</p>}
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={handleChange}
-          className="border rounded p-2"
-          required
-        />
-        <input
-          type="text"
-          name="username"
-          placeholder="Username"
-          value={form.username}
-          onChange={handleChange}
-          className="border rounded p-2"
-          required
-        />
-        <input
-          type="text"
-          name="first_name"
-          placeholder="First Name"
-          value={form.first_name}
-          onChange={handleChange}
-          className="border rounded p-2"
-        />
-        <input
-          type="text"
-          name="last_name"
-          placeholder="Last Name"
-          value={form.last_name}
-          onChange={handleChange}
-          className="border rounded p-2"
-        />
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          value={form.password}
-          onChange={handleChange}
-          className="border rounded p-2"
-          required
-        />
-        <button
-          type="submit"
-          className="bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-        >
-          Register
-        </button>
+    <div className="min-h-screen grid place-items-center">
+      <form onSubmit={onSubmit} className="w-full max-w-sm bg-white p-6 rounded-2xl shadow">
+        <h1 className="text-2xl font-semibold mb-4">Create your account</h1>
+        {['email','username','first_name','last_name'].map((k) => (
+          <div key={k} className="mb-3">
+            <label className="block text-sm mb-1 capitalize">{k.replace('_',' ')}</label>
+            <input className="w-full border rounded-md px-3 py-2" value={(form as any)[k]} onChange={e=>setForm({...form, [k]: e.target.value})} required={k!=='last_name' && k!=='first_name'} />
+          </div>
+        ))}
+        <label className="block text-sm mb-1">Password</label>
+        <input type="password" className="w-full border rounded-md px-3 py-2 mb-4" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} required />
+        <button className="w-full bg-black text-white rounded-md py-2 disabled:opacity-60" disabled={loading}>{loading?'Creating...':'Sign up'}</button>
+        <p className="text-sm mt-4">Have an account? <Link to="/login" className="text-blue-600">Log in</Link></p>
       </form>
     </div>
-  );
-};
-
-export default Register;
+  )
+}
