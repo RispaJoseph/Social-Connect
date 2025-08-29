@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { getFeed, createPost, updatePost, deletePost } from '../../api/posts'
 import { useAuth } from '../../auth/useAuth'
 import PeopleSidebar from '../../components/people/PeopleSidebar'
+import FollowersSidebar from '../../components/people/FollowersSidebar'
 import { toast } from 'sonner'
 import LikeButton from '../../components/engagement/LikeButton'
 import Comments from '../../components/engagement/Comments'
@@ -197,14 +198,17 @@ export default function Feed() {
 
       {/* Sidebar */}
       <aside className="space-y-4">
-        <div className="bg-white rounded-2xl border p-4">
+        {/* <div className="bg-white rounded-2xl border p-4">
           <h3 className="font-semibold mb-2">Notifications</h3>
           <p className="text-sm text-gray-600">
             Realtime is next; we’ll subscribe to Supabase notifications here.
           </p>
-        </div>
+        </div> */}
 
         <PeopleSidebar />
+        <FollowersSidebar />
+        
+
       </aside>
     </div>
   )

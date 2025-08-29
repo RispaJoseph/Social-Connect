@@ -59,10 +59,10 @@ export default function PeopleSidebar() {
 
   return (
     <div className="bg-white rounded-2xl border p-4">
-      <h3 className="font-semibold mb-2">People you follow</h3>
+      <h3 className="font-semibold mb-2">Following</h3>
       {loading && <div className="text-sm text-gray-600">Loading…</div>}
       {!loading && rows.length === 0 && (
-        <div className="text-sm text-gray-600">You aren’t following anyone yet.</div>
+        <div className="text-sm text-gray-600">You aren’t following anyone yet!</div>
       )}
       <div className="space-y-3">
         {rows.map((u) => (
