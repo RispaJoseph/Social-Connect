@@ -226,3 +226,6 @@ JWT_SECRET = config('JWT_SECRET', default='changeme')
 
 import logging
 logging.getLogger("django.server").setLevel(logging.ERROR)
+
+
+# https://social-connect-0b92.onrender.com
