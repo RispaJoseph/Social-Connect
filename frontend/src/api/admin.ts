@@ -29,6 +29,7 @@ export interface AdminUser {
   last_name?: string;
   is_active: boolean;
   is_staff: boolean;
+  is_superuser: boolean;
 }
 
 export interface AdminPost {

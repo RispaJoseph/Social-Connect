@@ -1,6 +1,12 @@
 // src/pages/admin/Users.tsx
 import { useEffect, useMemo, useState } from "react";
-import { listUsers, deactivateUser, type AdminUser } from "../../api/admin";
+import {
+  listUsers,
+  deactivateUser,
+  type AdminUser,
+} from "../../api/admin";
+import { api } from "../../lib/api"; // for activate endpoint
+import { Link } from "react-router-dom";
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
@@ -36,16 +42,28 @@ export default function AdminUsersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  async function onDeactivate(u: AdminUser) {
-    if (!u.is_active) return;
-    const ok = window.confirm(`Deactivate user "${u.username}"?`);
+  async function onToggleActive(u: AdminUser) {
+    if (u.is_staff && u.id === 1) {
+      // Optionally: prevent superuser (id=1) from being touched
+      alert("Superuser cannot be modified");
+      return;
+    }
+
+    const action = u.is_active ? "Deactivate" : "Activate";
+    const ok = window.confirm(`${action} user "${u.username}"?`);
     if (!ok) return;
+
     try {
-      await deactivateUser(u.id);
+      if (u.is_active) {
+        await deactivateUser(u.id);
+      } else {
+        // activate endpoint (assumes POST /api/admin/users/{id}/activate/)
+        await api.post(`/admin/users/${u.id}/activate/`, {});
+      }
       await fetchUsers();
-      alert(`Deactivated ${u.username}`);
+      alert(`${action}d ${u.username}`);
     } catch (e: any) {
-      alert(e?.message ?? "Failed to deactivate user");
+      alert(e?.message ?? `Failed to ${action.toLowerCase()} user`);
     }
   }
 
@@ -91,7 +109,15 @@ export default function AdminUsersPage() {
               data.results.map((u) => (
                 <tr key={u.id} className="border-t">
                   <td className="p-3">{u.id}</td>
-                  <td className="p-3">{u.username}</td>
+                  <td className="p-3">
+                    {/* ✅ Clickable username */}
+                    <Link
+                      to={`/profile/${u.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {u.username}
+                    </Link>
+                  </td>
                   <td className="p-3">{u.email || "—"}</td>
                   <td className="p-3">
                     {(u.first_name || u.last_name)
@@ -100,21 +126,29 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-3">
                     {u.is_active ? (
-                      <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-green-700">Yes</span>
+                      <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-green-700">
+                        Yes
+                      </span>
                     ) : (
-                      <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-gray-700">No</span>
+                      <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-gray-700">
+                        No
+                      </span>
                     )}
                   </td>
                   <td className="p-3">{u.is_staff ? "Yes" : "No"}</td>
                   <td className="p-3">
-                    <button
-                      className="rounded-md border px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
-                      disabled={!u.is_active}
-                      onClick={() => onDeactivate(u)}
-                    >
-                      Deactivate
-                    </button>
+                    {u.is_superuser ? (
+                      <span className="text-xs text-gray-500">Superuser</span>
+                    ) : (
+                      <button
+                        className="rounded-md border px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+                        onClick={() => onToggleActive(u)}
+                      >
+                        {u.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                    )}
                   </td>
+
                 </tr>
               ))}
           </tbody>

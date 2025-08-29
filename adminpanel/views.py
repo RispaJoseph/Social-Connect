@@ -3,6 +3,7 @@ from django.utils.timezone import now
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 
 from posts.models import Post
 from .serializers import UserSerializer, PostSerializer
@@ -20,10 +21,18 @@ class IsAdminUser(permissions.BasePermission):
 
 
 # ---- User Management ----
+
+class AdminPageNumberPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
+    queryset = User.objects.filter(is_superuser=False, is_staff=False)
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
+    pagination_class = AdminPageNumberPagination
 
 
 class UserDetailView(generics.RetrieveAPIView):
@@ -43,6 +52,21 @@ class DeactivateUserView(APIView):
             return Response({"detail": "User deactivated successfully."}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+class ActivateUserView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, user_id):
+        try:
+            user = User.objects.get(pk=user_id)
+            user.is_active = True
+            user.save()
+            return Response({"detail": "User activated successfully."}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 # ---- Post Management ----

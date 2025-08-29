@@ -72,3 +72,11 @@ export async function getPublicProfileByUsername(username: string) {
   const { data } = await api.get(`/auth/by-username/${encodeURIComponent(username)}/`)
   return data
 }
+
+
+
+
+export async function getSuggestions(params?: { page?: number; page_size?: number; q?: string }) {
+  const { data } = await api.get("/auth/suggestions/", { params });
+  return Array.isArray(data) ? data : (data?.results ?? []);
+}

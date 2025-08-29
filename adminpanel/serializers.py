@@ -30,3 +30,14 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ["id", "recipient", "message", "is_read", "created_at"]
+
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "email", "first_name", "last_name",
+                  "is_active", "is_staff", "is_superuser") 
+
+
+

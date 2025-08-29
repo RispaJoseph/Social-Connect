@@ -1,11 +1,15 @@
 // src/pages/profile/Profile.tsx
-import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { getMe, updateMe, uploadAvatar, Me } from '../../api/users'
-import { getPublicProfileById } from '../../api/users'
-import { toast } from 'sonner'
-import FollowButton from '../../components/follow/FollowButton'
-import { useAuth } from '../../auth/useAuth'
+import { useEffect, useMemo, useState } from "react"
+import { useParams } from "react-router-dom"
+import { getMe, updateMe, uploadAvatar, Me } from "../../api/users"
+import { getPublicProfileById } from "../../api/users"
+import { changePassword } from "../../api/auth"
+import { toast } from "sonner"
+import FollowButton from "../../components/follow/FollowButton"
+import { useAuth } from "../../auth/useAuth"
+
+import FollowersList from "../../components/profile/FollowersList"
+import FollowingList from "../../components/profile/FollowingList"
 
 type PublicProfile = {
   id: number
@@ -15,7 +19,7 @@ type PublicProfile = {
   avatar_url?: string | null
   website?: string | null
   location?: string | null
-  visibility?: 'public' | 'private' | 'followers_only'
+  visibility?: "public" | "private" | "followers_only"
   followers_count?: number
   following_count?: number
   posts_count?: number
@@ -24,12 +28,14 @@ type PublicProfile = {
 
 export default function Profile() {
   const { user } = useAuth()
-  // 🔑 match your router: /profile/:id
   const { id } = useParams<{ id?: string }>()
   const [me, setMe] = useState<Me | null>(null)
   const [publicProfile, setPublicProfile] = useState<PublicProfile | null>(null)
   const [saving, setSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [pwdSaving, setPwdSaving] = useState(false)
+
+  const userId = Number(id)
 
   const viewingOwn = useMemo(() => {
     if (!id) return true
@@ -38,7 +44,7 @@ export default function Profile() {
   }, [id, user])
 
   useEffect(() => {
-    (async () => {
+    ; (async () => {
       try {
         if (viewingOwn) {
           const mine = await getMe()
@@ -50,7 +56,7 @@ export default function Profile() {
           setMe(null)
         }
       } catch (e: any) {
-        toast.error(e?.response?.data?.detail || 'Failed to load profile')
+        toast.error(e?.response?.data?.detail || "Failed to load profile")
       }
     })()
   }, [id, viewingOwn])
@@ -61,15 +67,17 @@ export default function Profile() {
       id: p?.id,
       username: u?.username ?? p?.username,
       email: u?.email ?? p?.email,
-      bio: p?.bio ?? '',
+      bio: p?.bio ?? "",
       avatar_url: p?.avatar_url ?? null,
-      website: p?.website ?? '',
-      location: p?.location ?? '',
-      visibility: p?.visibility ?? 'public',
+      website: p?.website ?? "",
+      location: p?.location ?? "",
+      visibility: p?.visibility ?? "public",
       followers_count: p?.followers_count ?? 0,
       following_count: p?.following_count ?? 0,
       posts_count: p?.posts_count ?? 0,
-      user: u?.id ? { id: u.id, username: u.username, email: u.email } : undefined,
+      user: u?.id
+        ? { id: u.id, username: u.username, email: u.email }
+        : undefined,
     }
   }
 
@@ -79,31 +87,64 @@ export default function Profile() {
     setSaving(true)
     try {
       const next = await updateMe({
-        bio: me.bio || '',
-        website: me.website || '',
-        location: me.location || '',
-        visibility: (me.visibility as any) || 'public',
+        bio: me.bio || "",
+        website: me.website || "",
+        location: me.location || "",
+        visibility: (me.visibility as any) || "public",
       })
       setMe(next)
-      toast.success('Profile updated')
+      toast.success("Profile updated")
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || 'Update failed')
-    } finally { setSaving(false) }
+      toast.error(e?.response?.data?.detail || "Update failed")
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!['image/png','image/jpeg'].includes(file.type)) { toast.error('Only JPEG/PNG allowed'); return }
-    if (file.size > 2 * 1024 * 1024) { toast.error('Max 2MB'); return }
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      toast.error("Only JPEG/PNG allowed")
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Max 2MB")
+      return
+    }
     setAvatarUploading(true)
     try {
       const { avatar_url } = await uploadAvatar(file)
-      setMe(m => m ? { ...m, avatar_url } : m)
-      toast.success('Avatar updated')
+      setMe((m) => (m ? { ...m, avatar_url } : m))
+      toast.success("Avatar updated")
     } catch {
-      toast.error('Avatar upload failed')
-    } finally { setAvatarUploading(false) }
+      toast.error("Avatar upload failed")
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  async function onChangePassword(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    const old_password = (
+      form.elements.namedItem("old_password") as HTMLInputElement
+    ).value
+    const new_password = (
+      form.elements.namedItem("new_password") as HTMLInputElement
+    ).value
+
+    if (!old_password || !new_password) return
+    setPwdSaving(true)
+    try {
+      await changePassword({ old_password, new_password })
+      toast.success("Password changed successfully")
+      form.reset()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to change password")
+    } finally {
+      setPwdSaving(false)
+    }
   }
 
   if (viewingOwn && !me) return <div>Loading…</div>
@@ -112,83 +153,182 @@ export default function Profile() {
   const base = viewingOwn ? me! : publicProfile!
 
   return (
-    <div className="max-w-2xl mx-auto bg-white border rounded-2xl p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <img
-          src={base.avatar_url || 'https://via.placeholder.com/96?text=👤'}
-          className="w-20 h-20 rounded-full border object-cover"
-          alt=""
-        />
-        <div className="flex-1">
-          <div className="font-semibold text-lg">{viewingOwn ? me!.username : base.username}</div>
-          <div className="text-sm text-gray-600">{viewingOwn ? me!.email : base.email}</div>
+    <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* LEFT SIDEBAR */}
+      <div className="space-y-6">
+        {/* Profile header */}
+        <div className="bg-white border rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <img
+              src={base.avatar_url || "https://via.placeholder.com/96?text=👤"}
+              className="w-20 h-20 rounded-full border object-cover"
+              alt=""
+            />
+            <div>
+              <div className="font-semibold text-lg">
+                {viewingOwn ? me!.username : base.username}
+              </div>
+              <div className="text-sm text-gray-600">
+                {viewingOwn ? me!.email : base.email}
+              </div>
+              {viewingOwn ? (
+  <>
+    <label className="inline-block">
+      <span className="px-3 py-1.5 text-sm border rounded-md bg-gray-50 hover:bg-gray-100 cursor-pointer">
+        Choose File
+      </span>
+      <input
+        type="file"
+        accept="image/png,image/jpeg"
+        onChange={onAvatarChange}
+        className="hidden"
+      />
+    </label>
+    {avatarUploading && (
+      <div className="text-xs text-gray-500 mt-1">Uploading...</div>
+    )}
+  </>
+) : (
+  <FollowButton userId={Number(id)} />
+)}
 
-          {viewingOwn ? (
-            <>
-              <input type="file" accept="image/png,image/jpeg" onChange={onAvatarChange} />
-              {avatarUploading && <div className="text-xs text-gray-500 mt-1">Uploading...</div>}
-            </>
-          ) : (
-            <div className="mt-2">
-              <FollowButton userId={Number(id)} />
             </div>
-          )}
+          </div>
         </div>
+
+        {/* Small Change Password card */}
+        {viewingOwn && (
+          <form
+            onSubmit={onChangePassword}
+            className="space-y-4 bg-white border rounded-2xl p-4"
+          >
+            <h2 className="text-base font-semibold">Change Password</h2>
+            <div>
+              <label className="block text-xs mb-1">Old Password</label>
+              <input
+                name="old_password"
+                type="password"
+                className="w-full border rounded-md p-2 text-sm"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1">New Password</label>
+              <input
+                name="new_password"
+                type="password"
+                className="w-full border rounded-md p-2 text-sm"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-black text-white text-sm rounded-md disabled:opacity-60"
+              disabled={pwdSaving}
+            >
+              {pwdSaving ? "Changing…" : "Change"}
+            </button>
+          </form>
+        )}
       </div>
 
-      {viewingOwn ? (
-        <form onSubmit={onSave} className="space-y-4">
-          <div>
-            <label className="block text-sm mb-1">Bio (max 160)</label>
-            <textarea
-              className="w-full border rounded-md p-2"
-              value={me!.bio || ''} maxLength={160}
-              onChange={e => setMe({ ...me!, bio: e.target.value })}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* CENTER CONTENT */}
+      <div className="md:col-span-2">
+        {viewingOwn ? (
+          <form
+            onSubmit={onSave}
+            className="space-y-4 bg-white border rounded-2xl p-6"
+          >
+            <h2 className="text-lg font-semibold">Edit Profile</h2>
             <div>
-              <label className="block text-sm mb-1">Website</label>
-              <input className="w-full border rounded-md p-2"
-                value={me!.website || ''} onChange={e => setMe({ ...me!, website: e.target.value })}
+              <label className="block text-sm mb-1">Bio (max 160)</label>
+              <textarea
+                className="w-full border rounded-md p-2"
+                value={me!.bio || ""}
+                maxLength={160}
+                onChange={(e) => setMe({ ...me!, bio: e.target.value })}
               />
             </div>
-            <div>
-              <label className="block text-sm mb-1">Location</label>
-              <input className="w-full border rounded-md p-2"
-                value={me!.location || ''} onChange={e => setMe({ ...me!, location: e.target.value })}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm mb-1">Website</label>
+                <input
+                  className="w-full border rounded-md p-2"
+                  value={me!.website || ""}
+                  placeholder="https://example.com" 
+                  onChange={(e) => setMe({ ...me!, website: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Location</label>
+                <input
+                  className="w-full border rounded-md p-2"
+                  value={me!.location || ""}
+                  onChange={(e) => setMe({ ...me!, location: e.target.value })}
+                />
+              </div>
             </div>
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Visibility</label>
-            <select
-              className="border rounded-md p-2"
-              value={me!.visibility || 'public'}
-              onChange={e => setMe({ ...me!, visibility: e.target.value as any })}
+            <div>
+              <label className="block text-sm mb-1">Visibility</label>
+              <select
+                className="border rounded-md p-2"
+                value={me!.visibility || "public"}
+                onChange={(e) =>
+                  setMe({ ...me!, visibility: e.target.value as any })
+                }
+              >
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="followers_only">Followers only</option>
+              </select>
+            </div>
+            <button
+              className="px-4 py-2 bg-black text-white rounded-md disabled:opacity-60"
+              disabled={saving}
             >
-              <option value="public">Public</option>
-              <option value="private">Private</option>
-              <option value="followers_only">Followers only</option>
-            </select>
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </form>
+        ) : (
+          <div className="bg-white border rounded-2xl p-6 space-y-3">
+            {base.bio && <p className="whitespace-pre-wrap">{base.bio}</p>}
+            <div className="grid grid-cols-2 gap-3 text-sm text-gray-700">
+              <div>
+                <span className="text-gray-500">Website:</span>{" "}
+                {base.website || "—"}
+              </div>
+              <div>
+                <span className="text-gray-500">Location:</span>{" "}
+                {base.location || "—"}
+              </div>
+              <div>
+                <span className="text-gray-500">Followers:</span>{" "}
+                {base.followers_count ?? 0}
+              </div>
+              <div>
+                <span className="text-gray-500">Following:</span>{" "}
+                {base.following_count ?? 0}
+              </div>
+              <div>
+                <span className="text-gray-500">Posts:</span>{" "}
+                {base.posts_count ?? 0}
+              </div>
+            </div>
           </div>
+        )}
+      </div>
 
-          <button className="px-4 py-2 bg-black text-white rounded-md disabled:opacity-60" disabled={saving}>
-            {saving ? 'Saving...' : 'Save changes'}
-          </button>
-        </form>
-      ) : (
-        <div className="space-y-3">
-          {base.bio && <p className="whitespace-pre-wrap">{base.bio}</p>}
-          <div className="grid grid-cols-2 gap-3 text-sm text-gray-700">
-            <div><span className="text-gray-500">Website:</span> {base.website || '—'}</div>
-            <div><span className="text-gray-500">Location:</span> {base.location || '—'}</div>
-            <div><span className="text-gray-500">Followers:</span> {base.followers_count ?? 0}</div>
-            <div><span className="text-gray-500">Following:</span> {base.following_count ?? 0}</div>
-            <div><span className="text-gray-500">Posts:</span> {base.posts_count ?? 0}</div>
-          </div>
-        </div>
-      )}
+      {/* RIGHT SIDEBAR */}
+      <div className="space-y-6">
+        <section className="bg-white border rounded-2xl p-4">
+          <h2 className="mb-2 text-lg font-semibold">Followers</h2>
+          <FollowersList userId={userId} />
+        </section>
+        <section className="bg-white border rounded-2xl p-4">
+          <h2 className="mb-2 text-lg font-semibold">Following</h2>
+          <FollowingList userId={userId} />
+        </section>
+      </div>
     </div>
   )
 }

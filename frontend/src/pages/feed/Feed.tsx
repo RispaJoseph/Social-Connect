@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import LikeButton from '../../components/engagement/LikeButton'
 import Comments from '../../components/engagement/Comments'
 import { Link } from 'react-router-dom'
+import FollowList from "../../components/follow/FollowList";
+import SuggestedUsers from "../../components/follow/SuggestedUsers";
 
 export default function Feed() {
   const { user } = useAuth()
@@ -81,7 +83,7 @@ export default function Feed() {
             value={content}
             onChange={e => setContent(e.target.value)}
             placeholder="What's happening?"
-            className="w-full border rounded-md p-3 h-24"
+            className="w-full border rounded-md p-3 h-15"
           />
           <div className="mt-3 flex items-center gap-3">
             <input type="file" accept="image/png,image/jpeg" onChange={e => setFile(e.target.files?.[0])} />
@@ -206,7 +208,7 @@ export default function Feed() {
         </div> */}
 
         <PeopleSidebar />
-        <FollowersSidebar />
+        <SuggestedUsers />
         
 
       </aside>

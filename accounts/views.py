@@ -10,6 +10,11 @@ from django.urls import reverse
 from .utils import email_verification_token
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.decorators import api_view, permission_classes
+from django.db.models import Q
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import serializers
+
 
 from rest_framework import generics, permissions, status
 from rest_framework.generics import (
@@ -301,6 +306,81 @@ class LogoutView(APIView):
 # --------------------------
 # FOLLOW SYSTEM
 # --------------------------
+
+
+
+
+class SuggestedUserSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+    class Meta:
+        model = User
+        fields = ("id", "username", "avatar_url")  
+    
+    def get_avatar_url(self, obj):
+        # Try common places; return None if not found.
+        # 1) User model has avatar_url attr (custom user)
+        if hasattr(obj, "avatar_url"):
+            return obj.avatar_url
+
+        # 2) Related profile model: obj.profile.avatar_url
+        prof = getattr(obj, "profile", None)
+        if prof and hasattr(prof, "avatar_url"):
+            return prof.avatar_url
+
+        # 3) If you store a File/ImageField named 'avatar' on user/profile:
+        if hasattr(obj, "avatar") and getattr(obj, "avatar"):
+            try:
+                return obj.avatar.url
+            except Exception:
+                pass
+        if prof and hasattr(prof, "avatar") and getattr(prof, "avatar"):
+            try:
+                return prof.avatar.url
+            except Exception:
+                pass
+
+        return None
+
+
+class SuggestionsPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class SuggestedUsersView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SuggestedUserSerializer
+    pagination_class = SuggestionsPagination
+
+    def get_queryset(self):
+        me = self.request.user
+
+        # ---- Pick ONE depending on your follow model ----
+        following_ids = Follow.objects.filter(follower=me).values_list("following_id", flat=True)
+        # following_ids = me.following.values_list("id", flat=True)  # if ManyToMany
+
+        q = self.request.query_params.get("q")
+        qs = (
+            User.objects.filter(is_active=True)
+            .exclude(id=me.id)
+            .exclude(id__in=following_ids)
+            .exclude(is_staff=True)   # 👈 hide staff/admins
+            .exclude(is_superuser=True)  # 👈 hide superusers too
+            .order_by("-last_login", "-date_joined")
+        )
+        if q:
+            qs = qs.filter(Q(username__icontains=q) | Q(email__icontains=q))
+        return qs
+
+
+
+
+
+
+
+
+
 
 class FollowUserView(APIView):
     permission_classes = [permissions.IsAuthenticated]

@@ -222,3 +222,7 @@ SUPABASE_AVATAR_BUCKET = os.getenv("SUPABASE_AVATAR_BUCKET", "avatars")
 
 
 JWT_SECRET = config('JWT_SECRET', default='changeme')
+
+
+import logging
+logging.getLogger("django.server").setLevel(logging.ERROR)

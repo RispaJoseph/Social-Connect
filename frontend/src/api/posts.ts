@@ -61,21 +61,23 @@ export async function deletePost(id: number) {
 
 
 // --- Likes ---
-export async function likePost(postId: number) {
-  const { data } = await api.post(`/posts/${postId}/like/`)
-  return data
-}
-
-export async function unlikePost(postId: number) {
-  const { data } = await api.delete(`/posts/${postId}/like/`)
-  return data
+export async function toggleLike(postId: number) {
+  const { data } = await api.post(`/posts/${postId}/like/`);
+  // backend returns: { detail: "Liked" | "Unliked", like_count: number }
+  return data as { detail: string; like_count: number };
 }
 
 export async function getLikeStatus(postId: number) {
-  const { data } = await api.get(`/posts/${postId}/like-status/`)
-  // Expecting something like { liked: boolean }
-  return data as { liked: boolean }
+  const { data } = await api.get(`/posts/${postId}/like-status/`);
+  return data as { liked: boolean };
 }
+
+
+// export async function getLikeStatus(postId: number) {
+//   const { data } = await api.get(`/posts/${postId}/like-status/`)
+//   // Expecting something like { liked: boolean }
+//   return data as { liked: boolean }
+// }
 
 // --- Comments ---
 export type Comment = {
