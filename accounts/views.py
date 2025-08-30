@@ -76,18 +76,25 @@ User = get_user_model()
 #         )
 
 
-@api_view(["POST"])
-def debug_register(request):
-    """Temporary debug endpoint to test registration"""
-    from .serializers import UserRegisterSerializer
-    serializer = UserRegisterSerializer(data=request.data)
+class DebugRegisterView(APIView):
+    permission_classes = [AllowAny]   # 👈 make public
 
-    if serializer.is_valid():
-        user = serializer.save()
-        return Response({"message": "✅ User created", "username": user.username}, status=status.HTTP_201_CREATED)
+    def post(self, request, *args, **kwargs):
+        """Temporary debug endpoint to test registration"""
+        serializer = UserRegisterSerializer(data=request.data)
 
-    # 👇 This will return the real error details
-    return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                {"message": "✅ User created", "username": user.username},
+                status=status.HTTP_201_CREATED,
+            )
+
+        # Return full serializer errors so you see why it fails
+        return Response(
+            {"errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
