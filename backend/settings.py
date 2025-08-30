@@ -181,14 +181,14 @@ REST_FRAMEWORK = {
 
 
 
-SIMPLE_JWT = {
-"ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
-"REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-"ROTATE_REFRESH_TOKENS": False,
-"BLACKLIST_AFTER_ROTATION": True,
-"UPDATE_LAST_LOGIN": True,
-"AUTH_HEADER_TYPES": ("Bearer",),
-}
+# SIMPLE_JWT = {
+# "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+# "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+# "ROTATE_REFRESH_TOKENS": False,
+# "BLACKLIST_AFTER_ROTATION": True,
+# "UPDATE_LAST_LOGIN": True,
+# "AUTH_HEADER_TYPES": ("Bearer",),
+# }
 
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -256,11 +256,19 @@ SUPABASE_AVATAR_BUCKET = os.getenv("SUPABASE_AVATAR_BUCKET", "avatars")
 
 
 
-JWT_SECRET = config('JWT_SECRET', default='changeme')
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "SIGNING_KEY": config("JWT_SECRET", default=SECRET_KEY),   
+}
 
 
 import logging
-logging.getLogger("django.server").setLevel(logging.ERROR)
+logging.getLogger("django.server").setLevel(logging.DEBUG)
 
 
 # https://social-connect-0b92.onrender.com
