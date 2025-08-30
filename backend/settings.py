@@ -222,6 +222,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://social-connect-0b92.onrender.com",
+    "http://social-connect-0b92.onrender.com", 
     "https://rispa-social-connect.netlify.app",
     
 ]
