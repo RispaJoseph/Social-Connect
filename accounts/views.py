@@ -16,6 +16,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework import serializers
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+import logging
+logger = logging.getLogger("django")
 
 
 
@@ -57,16 +59,39 @@ User = get_user_model()
 
 
 # ---------------- REGISTER ----------------
+# @method_decorator(csrf_exempt, name="dispatch")
+# class RegisterView(generics.CreateAPIView):
+#     serializer_class = UserRegisterSerializer
+#     permission_classes = [AllowAny]           
+#     authentication_classes = []
+
+#     def create(self, request, *args, **kwargs):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+
+#         return Response(
+#             {"detail": "Registration successful! Please check your email to verify your account."},
+#             status=status.HTTP_201_CREATED,
+#         )
+
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
-    permission_classes = [AllowAny]           
+    permission_classes = [AllowAny]
     authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        if not serializer.is_valid():
+            # Force logging of errors to Render logs
+            logger.error("❌ Registration failed. Data: %s | Errors: %s", request.data, serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.save()
+        logger.info("✅ User registered successfully: %s", user.username)
 
         return Response(
             {"detail": "Registration successful! Please check your email to verify your account."},
