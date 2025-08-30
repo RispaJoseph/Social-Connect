@@ -76,6 +76,19 @@ User = get_user_model()
 #         )
 
 
+@api_view(["POST"])
+def debug_register(request):
+    """Temporary debug endpoint to test registration"""
+    from .serializers import UserRegisterSerializer
+    serializer = UserRegisterSerializer(data=request.data)
+
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({"message": "✅ User created", "username": user.username}, status=status.HTTP_201_CREATED)
+
+    # 👇 This will return the real error details
+    return Response({"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):

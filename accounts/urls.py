@@ -7,7 +7,7 @@ from .views import (
     PasswordResetView, PasswordResetConfirmView,
     ChangePasswordView, LogoutView,
     FollowUserView, UnfollowUserView, FollowersListView, FollowingListView, SuggestedUsersView,
-    PublicProfileByUsernameView, PublicUsersRootView,  
+    PublicProfileByUsernameView, PublicUsersRootView,  debug_register
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -51,5 +51,8 @@ urlpatterns = [
     path("followers/<int:user_id>/", FollowersListView.as_view(), name="followers-list"),
     path("following/<int:user_id>/", FollowingListView.as_view(), name="following-list"),
     path("suggestions/", SuggestedUsersView.as_view(), name="suggested-users"),
+
+    path("api/auth/debug-register/", debug_register),
+
 
 ]
