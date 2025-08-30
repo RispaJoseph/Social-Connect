@@ -221,6 +221,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "https://social-connect-0b92.onrender.com",
     "https://rispa-social-connect.netlify.app",
+    
 ]
 
 
@@ -233,6 +234,8 @@ if os.environ.get("RENDER"):
     ]
     CSRF_TRUSTED_ORIGINS = [
         "https://rispa-social-connect.netlify.app",
+        "https://social-connect-0b92.onrender.com",
+        
     ]
     FRONTEND_URL = "https://rispa-social-connect.netlify.app"
 else:
