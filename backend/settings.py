@@ -195,26 +195,46 @@ SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
 
 
-FRONTEND_URL = "http://localhost:5173"       
+# FRONTEND_URL = "http://localhost:5173"       
 
 
-CORS_ALLOWED_ORIGINS = [
+# CORS_ALLOWED_ORIGINS = [
     # "http://localhost:5173",  
     # "http://127.0.0.1:5173",
-    "https://rispa-social-connect.netlify.app",
-]
+    # "https://rispa-social-connect.netlify.app",
+# ]
 
 
 CORS_ALLOW_CREDENTIALS = True 
 
-ORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
-CSRF_TRUSTED_ORIGINS = [
-    # "http://localhost:5173",
-    # "http://127.0.0.1:5173",
-    "https://rispa-social-connect.netlify.app",
+# CSRF_TRUSTED_ORIGINS = [
+#     # "http://localhost:5173",
+#     # "http://127.0.0.1:5173",
+#     "https://rispa-social-connect.netlify.app",
+#     ]
+
+
+
+
+if os.environ.get("RENDER"):
+    # Production
+    CORS_ALLOWED_ORIGINS = [
+        "https://rispa-social-connect.netlify.app",
     ]
+    CSRF_TRUSTED_ORIGINS = [
+        "https://rispa-social-connect.netlify.app",
+    ]
+    FRONTEND_URL = "https://rispa-social-connect.netlify.app"
+else:
+    # Local development
+    CORS_ALLOW_ALL_ORIGINS = True
+    FRONTEND_URL = "http://localhost:5173"
 
+
+
+    
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
