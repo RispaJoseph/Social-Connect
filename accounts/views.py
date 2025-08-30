@@ -57,28 +57,6 @@ User = get_user_model()
 
 
 # ---------------- REGISTER ----------------
-# @method_decorator(csrf_exempt, name="dispatch")
-# class RegisterView(generics.CreateAPIView):
-#     serializer_class = UserRegisterSerializer
-#     permission_classes = [AllowAny]           
-#     authentication_classes = []
-
-#     def create(self, request, *args, **kwargs):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-
-#         return Response(
-#             {"detail": "Registration successful! Please check your email to verify your account."},
-#             status=status.HTTP_201_CREATED,
-#         )
-
-
-
-
-import logging
-logger = logging.getLogger("django")
-
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
@@ -87,19 +65,13 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            # Log the exact serializer errors to Render logs
-            logger.error("❌ Registration failed: %s", serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        user = serializer.save()
-        logger.info("✅ User registered successfully: %s", user.username)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
         return Response(
             {"detail": "Registration successful! Please check your email to verify your account."},
             status=status.HTTP_201_CREATED,
         )
-
 
 # ---------------- LOGIN ----------------
 @method_decorator(csrf_exempt, name="dispatch")

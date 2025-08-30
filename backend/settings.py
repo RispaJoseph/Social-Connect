@@ -33,7 +33,10 @@ SECRET_KEY = config("SECRET_KEY", default="insecure-dev-key")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=True, cast=bool)
 
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*").split(",")
+
+
+# ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*").split(",")
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 
 # Application definition
@@ -214,6 +217,11 @@ CORS_ALLOW_CREDENTIALS = True
 #     # "http://127.0.0.1:5173",
 #     "https://rispa-social-connect.netlify.app",
 #     ]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://social-connect-0b92.onrender.com",
+    "https://rispa-social-connect.netlify.app",
+]
 
 
 
