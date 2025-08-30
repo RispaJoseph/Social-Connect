@@ -84,25 +84,39 @@ class RegisterView(generics.CreateAPIView):
     authentication_classes = []
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            # Force logging of errors to Render logs
-            logger.error("❌ Registration failed. Data: %s | Errors: %s", request.data, serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+            logger.info("✅ User registered: %s", user.username)
+            return Response(
+                {"detail": "Registration successful!"},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            logger.error("❌ Registration crashed: %s | Data: %s", str(e), request.data, exc_info=True)
+            return Response({"detail": "Server error"}, status=500)
 
-        user = serializer.save()
-        logger.info("✅ User registered successfully: %s", user.username)
-
-        return Response(
-            {"detail": "Registration successful! Please check your email to verify your account."},
-            status=status.HTTP_201_CREATED,
-        )
 
 # ---------------- LOGIN ----------------
+# @method_decorator(csrf_exempt, name="dispatch")
+# class LoginView(TokenObtainPairView):
+#     serializer_class = CustomTokenObtainPairSerializer
+#     permission_classes = [AllowAny]
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as e:
+            logger.error("❌ Login crashed: %s | Data: %s", str(e), request.data, exc_info=True)
+            return Response({"detail": "Server error"}, status=500)
+
 
 
 class TokenRefreshViewCustom(TokenRefreshView):
