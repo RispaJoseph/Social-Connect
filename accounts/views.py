@@ -14,6 +14,9 @@ from rest_framework.decorators import api_view, permission_classes
 from django.db.models import Q
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import serializers
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
 
 
 from rest_framework import generics, permissions, status
@@ -54,6 +57,7 @@ User = get_user_model()
 
 
 # ---------------- REGISTER ----------------
+@method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
     permission_classes = [AllowAny]           
@@ -70,6 +74,7 @@ class RegisterView(generics.CreateAPIView):
         )
 
 # ---------------- LOGIN ----------------
+@method_decorator(csrf_exempt, name="dispatch")
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
