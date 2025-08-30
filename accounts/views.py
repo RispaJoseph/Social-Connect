@@ -75,26 +75,38 @@ User = get_user_model()
 #             status=status.HTTP_201_CREATED,
 #         )
 
+logger = logging.getLogger(__name__)
 
 class DebugRegisterView(APIView):
-    permission_classes = [AllowAny]   # 👈 make public
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         """Temporary debug endpoint to test registration"""
-        serializer = UserRegisterSerializer(data=request.data)
+        try:
+            logger.info("📩 Incoming data: %s", request.data)
 
-        if serializer.is_valid():
-            user = serializer.save()
+            serializer = UserRegisterSerializer(data=request.data)
+
+            if serializer.is_valid():
+                user = serializer.save()
+                logger.info("✅ User created: %s", user.username)
+                return Response(
+                    {"message": "✅ User created", "username": user.username},
+                    status=status.HTTP_201_CREATED,
+                )
+
+            logger.error("❌ Validation failed: %s", serializer.errors)
             return Response(
-                {"message": "✅ User created", "username": user.username},
-                status=status.HTTP_201_CREATED,
+                {"errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Return full serializer errors so you see why it fails
-        return Response(
-            {"errors": serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        except Exception as e:
+            logger.exception("💥 Debug register crashed: %s", str(e))
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
