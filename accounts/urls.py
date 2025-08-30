@@ -52,7 +52,7 @@ urlpatterns = [
     path("following/<int:user_id>/", FollowingListView.as_view(), name="following-list"),
     path("suggestions/", SuggestedUsersView.as_view(), name="suggested-users"),
 
-    path("api/auth/debug-register/", debug_register),
+    path("debug-register/", debug_register, name="debug-register"),
 
 
 ]
