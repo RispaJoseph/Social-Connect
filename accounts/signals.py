@@ -1,3 +1,23 @@
+# from django.db.models.signals import post_save
+# from django.dispatch import receiver
+# from django.conf import settings
+# from django.contrib.auth import get_user_model
+# from .models import Profile
+
+# User = get_user_model()
+
+# @receiver(post_save, sender=settings.AUTH_USER_MODEL)
+# def create_user_profile(sender, instance, created, **kwargs):
+#     if created:
+#         Profile.objects.create(user=instance)
+
+# @receiver(post_save, sender=settings.AUTH_USER_MODEL)
+# def save_user_profile(sender, instance, **kwargs):
+#     instance.profile.save()
+
+
+
+# accounts/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -6,11 +26,14 @@ from .models import Profile
 
 User = get_user_model()
 
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_user_profile(sender, instance, created, **kwargs):
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    """
+    Ensure a Profile always exists for every User (even inactive ones).
+    """
     if created:
-        Profile.objects.create(user=instance)
-
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+        Profile.objects.get_or_create(user=instance)
+    else:
+        # Ensure profile exists if missing
+        Profile.objects.get_or_create(user=instance)
+        instance.profile.save()

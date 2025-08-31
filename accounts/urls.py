@@ -21,8 +21,14 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
 
     # path("verify-email/<uid>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
+    # path("verify-email/<uidb64>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
+    # path("verify-email/<int:uid>/<str:token>/", VerifyEmailView.as_view(), name="verify-email"),
+    # path("verify-email/<uidb64>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
+    # path("verify-email/<token>/", VerifyEmailView.as_view(), name="verify-email"),
+    # path("verify-email/<uidb64>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
     path("verify-email/<uidb64>/<token>/", VerifyEmailView.as_view(), name="verify-email"),
-
+    
+    
 
 
     # Users root: list & search (?q=) and exact lookup via ?username=
@@ -52,7 +58,7 @@ urlpatterns = [
     path("following/<int:user_id>/", FollowingListView.as_view(), name="following-list"),
     path("suggestions/", SuggestedUsersView.as_view(), name="suggested-users"),
 
-     path("debug-register/", DebugRegisterView.as_view(), name="debug-register"),
-
+    #  path("debug-register/", DebugRegisterView.as_view(), name="debug-register"),
+    path("debug-register/", DebugRegisterView.as_view(), name="debug-register"),
 
 ]

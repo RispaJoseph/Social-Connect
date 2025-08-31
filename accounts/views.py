@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-from .utils import email_verification_token
+# from .utils import email_verification_token
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import api_view, permission_classes
@@ -16,6 +16,19 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework import serializers
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.contrib.auth.tokens import default_token_generator
+# from .utils import send_verification_email, verify_email_token, generate_email_token
+# from .utils import email_verification_token
+# from .utils import verify_email_token 
+# from .utils import send_verification_email, email_verification_token
+from .utils import send_verification_email, email_verification_token
+
+
+
+
+
+
+
 import logging
 logger = logging.getLogger("django")
 
@@ -77,36 +90,59 @@ User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
-class DebugRegisterView(APIView):
-    permission_classes = [AllowAny]
+# class DebugRegisterView(APIView):
+#     permission_classes = [AllowAny]
 
-    def post(self, request, *args, **kwargs):
-        """Temporary debug endpoint to test registration"""
-        try:
-            logger.info("📩 Incoming data: %s", request.data)
+#     def post(self, request, *args, **kwargs):
+#         """Temporary debug endpoint to test registration"""
+#         try:
+#             logger.info("📩 Incoming data: %s", request.data)
 
-            serializer = UserRegisterSerializer(data=request.data)
+#             serializer = UserRegisterSerializer(data=request.data)
 
-            if serializer.is_valid():
-                user = serializer.save()
-                logger.info("✅ User created: %s", user.username)
-                return Response(
-                    {"message": "✅ User created", "username": user.username},
-                    status=status.HTTP_201_CREATED,
-                )
+#             if serializer.is_valid():
+#                 user = serializer.save()
+#                 logger.info("✅ User created: %s", user.username)
+#                 return Response(
+#                     {"message": "✅ User created", "username": user.username},
+#                     status=status.HTTP_201_CREATED,
+#                 )
 
-            logger.error("❌ Validation failed: %s", serializer.errors)
-            return Response(
-                {"errors": serializer.errors},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+#             logger.error("❌ Validation failed: %s", serializer.errors)
+#             return Response(
+#                 {"errors": serializer.errors},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
 
-        except Exception as e:
-            logger.exception("💥 Debug register crashed: %s", str(e))
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+#         except Exception as e:
+#             logger.exception("💥 Debug register crashed: %s", str(e))
+#             return Response(
+#                 {"error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             )
+
+
+
+
+
+# class DebugRegisterView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request, *args, **kwargs):
+#         serializer = UserRegisterSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         # ✅ Must remain inactive until verification
+#         user = serializer.save(is_active=False)
+
+#         send_verification_email(user, request)
+
+#         return Response(
+#             {"detail": "Registration successful! Please check your email."},
+#             status=status.HTTP_201_CREATED,
+#         )
+
+
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -119,15 +155,46 @@ class RegisterView(generics.CreateAPIView):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            user = serializer.save()
-            logger.info("✅ User registered: %s", user.username)
+
+            # ✅ Create user but set inactive until verification
+            user = serializer.save(is_active=False)
+
+            # ✅ Send verification email
+            send_verification_email(user, request)
+
+            logger.info("✅ User registered (inactive): %s", user.username)
             return Response(
-                {"detail": "Registration successful!"},
+                {"detail": "Registration successful! Please check your email to verify your account."},
                 status=status.HTTP_201_CREATED,
             )
+
         except Exception as e:
             logger.error("❌ Registration crashed: %s | Data: %s", str(e), request.data, exc_info=True)
             return Response({"detail": "Server error"}, status=500)
+
+
+
+
+class DebugRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = UserRegisterSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            # ✅ Also inactive here
+            user = serializer.save(is_active=False)
+
+            send_verification_email(user, request)
+
+            return Response(
+                {"detail": "Registration successful! Please check your email to verify your account."},
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 # ---------------- LOGIN ----------------
@@ -157,43 +224,130 @@ class TokenRefreshViewCustom(TokenRefreshView):
 
 
 
-def send_verification_email(user, request):
-    uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-    token = email_verification_token.make_token(user)
+# def send_verification_email(user, request):
+#     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+#     token = email_verification_token.make_token(user)
 
-    # URL names MUST match your urls.py pattern
-    relative_link = reverse("verify-email", kwargs={"uidb64": uidb64, "token": token})
+#     # URL names MUST match your urls.py pattern
+#     relative_link = reverse("verify-email", kwargs={"uidb64": uidb64, "token": token})
 
-    FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
-    absurl = f"{FRONTEND_URL}{relative_link}"
+#     FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+#     absurl = f"{FRONTEND_URL}{relative_link}"
 
-    email_body = f"Hi {user.username},\nUse this link to verify your email:\n{absurl}"
-    send_mail(
-        "Verify your SocialConnect account",
-        email_body,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=False,
-    )
+#     email_body = f"Hi {user.username},\nUse this link to verify your email:\n{absurl}"
+#     send_mail(
+#         "Verify your SocialConnect account",
+#         email_body,
+#         settings.DEFAULT_FROM_EMAIL,
+#         [user.email],
+#         fail_silently=False,
+#     )
+
+
+
+
+# def send_verification_email(user, request):
+#     token = generate_email_token(user)
+
+#     FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+#     verify_url = f"{FRONTEND_URL}/verify-email/{token}/"   # ✅ only token
+
+#     subject = "Verify your SocialConnect account"
+#     message = f"Hi {user.username},\n\nClick to verify your account:\n{verify_url}"
+
+#     send_mail(
+#         subject,
+#         message,
+#         settings.DEFAULT_FROM_EMAIL,
+#         [user.email],
+#         fail_silently=False,
+#     )
+
+
+
+
+
+
+
+# class VerifyEmailView(APIView):
+#     permission_classes = [AllowAny]  # public
+
+#     def get(self, request, uidb64, token):  # <-- uidb64 must match urls.py
+#         try:
+#             uid = smart_str(urlsafe_base64_decode(uidb64))
+#             user = User.objects.get(id=uid)
+#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+#             return Response({"detail": "Invalid UID"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if PasswordResetTokenGenerator().check_token(user, token):
+#             user.is_active = True
+#             user.save()
+#             return Response({"detail": "Email verified successfully. You can now log in."}, status=status.HTTP_200_OK)
+
+#         return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+# class VerifyEmailView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def get(self, request, uidb64, token):
+#         try:
+#             uid = force_str(urlsafe_base64_decode(uidb64))
+#             user = get_object_or_404(User, pk=uid)
+#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+#             return Response({"error": "Invalid link."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if email_verification_token.check_token(user, token):
+#             user.is_active = True
+#             user.save()
+#             return Response({"detail": "Email verified successfully. You can now log in."})
+#         return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+# class VerifyEmailView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def get(self, request, uidb64, token):
+#         try:
+#             uid = force_str(urlsafe_base64_decode(uidb64))
+#             user = get_object_or_404(User, pk=uid)
+#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+#             return Response({"error": "Invalid link."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if email_verification_token.check_token(user, token):
+#             user.is_active = True
+#             user.save()
+#             return Response({"detail": "Email verified successfully. You can now log in."})
+#         return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
 class VerifyEmailView(APIView):
-    permission_classes = [AllowAny]  # public
+    permission_classes = [AllowAny]
 
-    def get(self, request, uidb64, token):  # <-- uidb64 must match urls.py
+    def get(self, request, uidb64, token):
         try:
-            uid = smart_str(urlsafe_base64_decode(uidb64))
-            user = User.objects.get(id=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            return Response({"detail": "Invalid UID"}, status=status.HTTP_400_BAD_REQUEST)
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = get_object_or_404(User, pk=uid)
+            print("🔍 Found user:", user.email, "is_active:", user.is_active)
+        except Exception:
+            return Response({"error": "Invalid link."}, status=400)
 
-        if PasswordResetTokenGenerator().check_token(user, token):
+        if email_verification_token.check_token(user, token):
             user.is_active = True
-            user.save()
-            return Response({"detail": "Email verified successfully. You can now log in."}, status=status.HTTP_200_OK)
+            user.save(update_fields=["is_active"])
+            return Response({"detail": "Email verified successfully."}, status=200)
 
-        return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid or expired token."}, status=400)
+
+
+
+
 
 
 # --------------------------
@@ -495,23 +649,47 @@ class UnfollowUserView(APIView):
             return Response({"error": "You are not following this user"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# class FollowersListView(generics.ListAPIView):
+#     serializer_class = UserSerializer
+#     permission_classes = [permissions.IsAuthenticated]
+#     def get_queryset(self):
+#         user = User.objects.get(id=self.kwargs["user_id"])
+#         return User.objects.select_related("profile").filter(
+#             id__in=user.followers.values_list("follower", flat=True)
+#         )
+
+
 class FollowersListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
     def get_queryset(self):
-        user = User.objects.get(id=self.kwargs["user_id"])
+        user = get_object_or_404(User, id=self.kwargs["user_id"])
         return User.objects.select_related("profile").filter(
             id__in=user.followers.values_list("follower", flat=True)
         )
 
+
+
+# class FollowingListView(generics.ListAPIView):
+#     serializer_class = UserSerializer
+#     permission_classes = [permissions.IsAuthenticated]
+#     def get_queryset(self):
+#         user = User.objects.get(id=self.kwargs["user_id"])
+#         return User.objects.select_related("profile").filter(
+#             id__in=user.following.values_list("following", flat=True)
+#         )
+
 class FollowingListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
     def get_queryset(self):
-        user = User.objects.get(id=self.kwargs["user_id"])
+        user = get_object_or_404(User, id=self.kwargs["user_id"])
         return User.objects.select_related("profile").filter(
             id__in=user.following.values_list("following", flat=True)
         )
+
 
 
 

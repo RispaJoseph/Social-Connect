@@ -39,6 +39,8 @@ DEBUG = config("DEBUG", default=True, cast=bool)
 # ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
 
 ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = ["social-connect-0b92.onrender.com", "rispa-social-connect.netlify.app"]
+
 
 
 # Application definition
@@ -193,14 +195,17 @@ REST_FRAMEWORK = {
 # }
 
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@socialconnect.local")
 SITE_NAME = os.getenv("SITE_NAME", "SocialConnect")
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
 
 
-# FRONTEND_URL = "http://localhost:5173"       
+# FRONTEND_URL = "http://localhost:5173"   
+
+
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:5173")
 
 
 # CORS_ALLOWED_ORIGINS = [
@@ -271,7 +276,25 @@ SIMPLE_JWT = {
 
 
 import logging
-logging.getLogger("django.server").setLevel(logging.DEBUG)
+# logging.getLogger("django.server").setLevel(logging.DEBUG)
+
+if DEBUG:
+    logging.getLogger("django.server").setLevel(logging.DEBUG)
 
 
 # https://social-connect-0b92.onrender.com
+
+
+# Token valid for 1 day
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+
+
+
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = config("EMAIL_PORT", cast=int, default=587)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", cast=bool, default=True)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
+
