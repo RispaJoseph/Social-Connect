@@ -50,7 +50,11 @@ export const router = createBrowserRouter([
   },
   { path: "/login", element: <Login /> },
   { path: "/register", element: <Register /> },
+  // { path: "/verify-email/:uidb64/:token", element: <VerifyEmail /> },
+  // { path: "/verify-email/:token", element: <VerifyEmail /> },
   { path: "/verify-email/:uidb64/:token", element: <VerifyEmail /> },
+  
+
   { path: "/forgot-password", element: <ForgotPassword /> },
   { path: "/reset-password/:uidb64/:token", element: <ResetPasswordConfirm /> },
 ]);
