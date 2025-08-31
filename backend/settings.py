@@ -196,7 +196,8 @@ REST_FRAMEWORK = {
 
 
 # EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@socialconnect.local")
+# DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@socialconnect.local")
+# DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
 SITE_NAME = os.getenv("SITE_NAME", "SocialConnect")
 SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:8000")
 
