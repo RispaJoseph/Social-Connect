@@ -173,6 +173,29 @@ logger = logging.getLogger(__name__)
 #             return Response({"detail": "Server error"}, status=500)
 
 
+# @method_decorator(csrf_exempt, name="dispatch")
+# class RegisterView(generics.CreateAPIView):
+#     serializer_class = UserRegisterSerializer
+#     permission_classes = [AllowAny]
+#     authentication_classes = []
+
+#     def create(self, request, *args, **kwargs):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         # ✅ Create user but set inactive until verification
+#         user = serializer.save(is_active=False)
+
+#         # ✅ Send verification email
+#         send_verification_email(user, request)
+
+#         logger.info("✅ User registered (inactive): %s", user.username)
+#         return Response(
+#             {"detail": "Registration successful! Please check your email to verify your account."},
+#             status=status.HTTP_201_CREATED,
+#         )
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
@@ -181,7 +204,7 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer.is_valid(raise_exception=True)  # ✅ will raise explicit errors automatically
 
         # ✅ Create user but set inactive until verification
         user = serializer.save(is_active=False)
@@ -194,6 +217,7 @@ class RegisterView(generics.CreateAPIView):
             {"detail": "Registration successful! Please check your email to verify your account."},
             status=status.HTTP_201_CREATED,
         )
+
 
 
 
