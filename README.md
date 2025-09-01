@@ -27,7 +27,7 @@ It features a modern **React + TypeScript** frontend and a **Django REST Framewo
 ---
 
 ## 🏗️ Project Structure
-
+```
 socialconnect/
 │── backend/ # Django project settings
 │── accounts/ # User authentication & profiles
@@ -39,6 +39,7 @@ socialconnect/
 │── requirements.txt # Python dependencies
 │── package.json # Frontend dependencies
 │── .env # Environment variables
+```
 
 
 ---
@@ -73,6 +74,7 @@ python manage.py runserver
 ```
 
 ### 3. Frontend Setup (React + TS)
+```bash
 cd frontend
 npm install
 npm run dev
