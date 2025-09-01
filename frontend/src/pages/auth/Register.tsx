@@ -51,9 +51,22 @@ export default function Register() {
       toast.success('Registered! Please verify your email before login.')
       nav('/login')
     } catch (e: any) {
-      const detail = e?.response?.data?.detail || 'Registration failed'
-      toast.error(detail)
-    } finally {
+      const data = e?.response?.data
+
+      if (data) {
+        // If backend returned field-specific errors
+        if (typeof data === 'object' && !data.detail) {
+          const messages = Object.values(data).flat().join('\n')
+          toast.error(messages)
+        } else {
+          // fallback to detail or generic
+          toast.error(data.detail || 'Registration failed')
+        }
+      } else {
+        toast.error('Registration failed')
+      }
+    }
+    finally {
       setLoading(false)
     }
   }
