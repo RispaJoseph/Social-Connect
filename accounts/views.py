@@ -145,6 +145,34 @@ logger = logging.getLogger(__name__)
 
 
 
+# @method_decorator(csrf_exempt, name="dispatch")
+# class RegisterView(generics.CreateAPIView):
+#     serializer_class = UserRegisterSerializer
+#     permission_classes = [AllowAny]
+#     authentication_classes = []
+
+#     def create(self, request, *args, **kwargs):
+#         try:
+#             serializer = self.get_serializer(data=request.data)
+#             serializer.is_valid(raise_exception=True)
+
+#             # ✅ Create user but set inactive until verification
+#             user = serializer.save(is_active=False)
+
+#             # ✅ Send verification email
+#             send_verification_email(user, request)
+
+#             logger.info("✅ User registered (inactive): %s", user.username)
+#             return Response(
+#                 {"detail": "Registration successful! Please check your email to verify your account."},
+#                 status=status.HTTP_201_CREATED,
+#             )
+
+#         except Exception as e:
+#             logger.error("❌ Registration crashed: %s | Data: %s", str(e), request.data, exc_info=True)
+#             return Response({"detail": "Server error"}, status=500)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegisterSerializer
@@ -152,25 +180,20 @@ class RegisterView(generics.CreateAPIView):
     authentication_classes = []
 
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-            # ✅ Create user but set inactive until verification
-            user = serializer.save(is_active=False)
+        # ✅ Create user but set inactive until verification
+        user = serializer.save(is_active=False)
 
-            # ✅ Send verification email
-            send_verification_email(user, request)
+        # ✅ Send verification email
+        send_verification_email(user, request)
 
-            logger.info("✅ User registered (inactive): %s", user.username)
-            return Response(
-                {"detail": "Registration successful! Please check your email to verify your account."},
-                status=status.HTTP_201_CREATED,
-            )
-
-        except Exception as e:
-            logger.error("❌ Registration crashed: %s | Data: %s", str(e), request.data, exc_info=True)
-            return Response({"detail": "Server error"}, status=500)
+        logger.info("✅ User registered (inactive): %s", user.username)
+        return Response(
+            {"detail": "Registration successful! Please check your email to verify your account."},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 
@@ -204,17 +227,28 @@ class DebugRegisterView(APIView):
 #     permission_classes = [AllowAny]
 
 
+# @method_decorator(csrf_exempt, name="dispatch")
+# class LoginView(TokenObtainPairView):
+#     serializer_class = CustomTokenObtainPairSerializer
+#     permission_classes = [AllowAny]
+
+#     def post(self, request, *args, **kwargs):
+#         try:
+#             return super().post(request, *args, **kwargs)
+#         except Exception as e:
+#             logger.error("❌ Login crashed: %s | Data: %s", str(e), request.data, exc_info=True)
+#             return Response({"detail": "Server error"}, status=500)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        try:
-            return super().post(request, *args, **kwargs)
-        except Exception as e:
-            logger.error("❌ Login crashed: %s | Data: %s", str(e), request.data, exc_info=True)
-            return Response({"detail": "Server error"}, status=500)
+        # Just call the parent implementation
+        return super().post(request, *args, **kwargs)
+
 
 
 

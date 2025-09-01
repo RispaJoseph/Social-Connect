@@ -23,6 +23,37 @@ User = get_user_model()
 # USER REGISTRATION
 # -------------------------------------------------------------------
 
+# class UserRegisterSerializer(serializers.ModelSerializer):
+#     password = serializers.CharField(write_only=True, validators=[validate_password])
+
+#     class Meta:
+#         model = User
+#         fields = ("username", "email", "first_name", "last_name", "password")
+
+#     def create(self, validated_data):
+#         # Create inactive user initially
+#         user = User.objects.create_user(
+#             username=validated_data["username"],
+#             email=validated_data["email"],
+#             first_name=validated_data.get("first_name", ""),
+#             last_name=validated_data.get("last_name", ""),
+#             password=validated_data["password"],
+#             # is_active=False  # user inactive until email verification
+#             is_active=True
+#         )
+
+#         # Generate email verification token
+#         token = PasswordResetTokenGenerator().make_token(user)
+#         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+#         verification_link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/verify-email/{uidb64}/{token}/"
+
+#         # Print verification link to console (you can send via email in production)
+#         print(f"Email verification link for {user.email}: {verification_link}")
+
+#         return user
+
+
+
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
@@ -30,32 +61,70 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ("username", "email", "first_name", "last_name", "password")
 
+    def validate_email(self, value):
+        """Check if email already exists."""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return value
+
+    def validate_username(self, value):
+        """Check if username already exists."""
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+    def validate_password(self, value):
+        """Run Django’s built-in password validators with friendly errors."""
+        try:
+            validate_password(value)
+        except Exception as e:
+            raise serializers.ValidationError([str(err) for err in e])
+        return value
+
     def create(self, validated_data):
-        # Create inactive user initially
+        # ✅ Create inactive user until verification
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
             password=validated_data["password"],
-            # is_active=False  # user inactive until email verification
-            is_active=True
+            is_active=False,  # set inactive until email verification
         )
 
-        # Generate email verification token
+        # ✅ Generate verification token
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         verification_link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/verify-email/{uidb64}/{token}/"
 
-        # Print verification link to console (you can send via email in production)
-        print(f"Email verification link for {user.email}: {verification_link}")
+        # Log it (you’re already sending email in production with send_verification_email)
+        print(f"📧 Email verification link for {user.email}: {verification_link}")
 
         return user
 
     
 
+# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+#     """Allow login using username OR email."""
+#     @classmethod
+#     def get_token(cls, user):
+#         token = super().get_token(user)
+#         return token
+
+#     def validate(self, attrs):
+#         username_or_email = attrs.get("username")
+#         password = attrs.get("password")
+#         user = User.objects.filter(Q(username=username_or_email) | Q(email=username_or_email)).first()
+#         if user and user.check_password(password):
+#             attrs["username"] = user.username  # required by SimpleJWT
+#         return super().validate(attrs)
+
+
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Allow login using username OR email."""
+    """Allow login using username OR email with human-readable errors."""
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -64,9 +133,34 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         username_or_email = attrs.get("username")
         password = attrs.get("password")
-        user = User.objects.filter(Q(username=username_or_email) | Q(email=username_or_email)).first()
-        if user and user.check_password(password):
-            attrs["username"] = user.username  # required by SimpleJWT
+
+        if not username_or_email or not password:
+            raise serializers.ValidationError(
+                {"detail": "Both username/email and password are required."}
+            )
+
+        # Find user by username OR email
+        user = User.objects.filter(
+            Q(username=username_or_email) | Q(email=username_or_email)
+        ).first()
+
+        if not user:
+            raise serializers.ValidationError(
+                {"detail": "No account found with this username or email."}
+            )
+
+        if not user.check_password(password):
+            raise serializers.ValidationError(
+                {"detail": "Incorrect password. Please try again."}
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                {"detail": "This account is inactive. Please verify your email before logging in."}
+            )
+
+        # At this point, authentication is valid → replace username for JWT
+        attrs["username"] = user.username  
         return super().validate(attrs)
 
 
