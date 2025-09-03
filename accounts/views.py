@@ -7,7 +7,6 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-# from .utils import email_verification_token
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.decorators import api_view, permission_classes
@@ -17,16 +16,7 @@ from rest_framework import serializers
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.contrib.auth.tokens import default_token_generator
-# from .utils import send_verification_email, verify_email_token, generate_email_token
-# from .utils import email_verification_token
-# from .utils import verify_email_token 
-# from .utils import send_verification_email, email_verification_token
 from .utils import send_verification_email, email_verification_token
-
-
-
-
-
 
 
 import logging
@@ -72,129 +62,9 @@ User = get_user_model()
 
 
 # ---------------- REGISTER ----------------
-# @method_decorator(csrf_exempt, name="dispatch")
-# class RegisterView(generics.CreateAPIView):
-#     serializer_class = UserRegisterSerializer
-#     permission_classes = [AllowAny]           
-#     authentication_classes = []
 
-#     def create(self, request, *args, **kwargs):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-
-#         return Response(
-#             {"detail": "Registration successful! Please check your email to verify your account."},
-#             status=status.HTTP_201_CREATED,
-#         )
 
 logger = logging.getLogger(__name__)
-
-# class DebugRegisterView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def post(self, request, *args, **kwargs):
-#         """Temporary debug endpoint to test registration"""
-#         try:
-#             logger.info("📩 Incoming data: %s", request.data)
-
-#             serializer = UserRegisterSerializer(data=request.data)
-
-#             if serializer.is_valid():
-#                 user = serializer.save()
-#                 logger.info("✅ User created: %s", user.username)
-#                 return Response(
-#                     {"message": "✅ User created", "username": user.username},
-#                     status=status.HTTP_201_CREATED,
-#                 )
-
-#             logger.error("❌ Validation failed: %s", serializer.errors)
-#             return Response(
-#                 {"errors": serializer.errors},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         except Exception as e:
-#             logger.exception("💥 Debug register crashed: %s", str(e))
-#             return Response(
-#                 {"error": str(e)},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             )
-
-
-
-
-
-# class DebugRegisterView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def post(self, request, *args, **kwargs):
-#         serializer = UserRegisterSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         # ✅ Must remain inactive until verification
-#         user = serializer.save(is_active=False)
-
-#         send_verification_email(user, request)
-
-#         return Response(
-#             {"detail": "Registration successful! Please check your email."},
-#             status=status.HTTP_201_CREATED,
-#         )
-
-
-
-
-# @method_decorator(csrf_exempt, name="dispatch")
-# class RegisterView(generics.CreateAPIView):
-#     serializer_class = UserRegisterSerializer
-#     permission_classes = [AllowAny]
-#     authentication_classes = []
-
-#     def create(self, request, *args, **kwargs):
-#         try:
-#             serializer = self.get_serializer(data=request.data)
-#             serializer.is_valid(raise_exception=True)
-
-#             # ✅ Create user but set inactive until verification
-#             user = serializer.save(is_active=False)
-
-#             # ✅ Send verification email
-#             send_verification_email(user, request)
-
-#             logger.info("✅ User registered (inactive): %s", user.username)
-#             return Response(
-#                 {"detail": "Registration successful! Please check your email to verify your account."},
-#                 status=status.HTTP_201_CREATED,
-#             )
-
-#         except Exception as e:
-#             logger.error("❌ Registration crashed: %s | Data: %s", str(e), request.data, exc_info=True)
-#             return Response({"detail": "Server error"}, status=500)
-
-
-# @method_decorator(csrf_exempt, name="dispatch")
-# class RegisterView(generics.CreateAPIView):
-#     serializer_class = UserRegisterSerializer
-#     permission_classes = [AllowAny]
-#     authentication_classes = []
-
-#     def create(self, request, *args, **kwargs):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         # ✅ Create user but set inactive until verification
-#         user = serializer.save(is_active=False)
-
-#         # ✅ Send verification email
-#         send_verification_email(user, request)
-
-#         logger.info("✅ User registered (inactive): %s", user.username)
-#         return Response(
-#             {"detail": "Registration successful! Please check your email to verify your account."},
-#             status=status.HTTP_201_CREATED,
-#         )
-
 
 @method_decorator(csrf_exempt, name="dispatch")
 class RegisterView(generics.CreateAPIView):
@@ -204,15 +74,15 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)  # ✅ will raise explicit errors automatically
+        serializer.is_valid(raise_exception=True)  
 
-        # ✅ Create user but set inactive until verification
+        
         user = serializer.save(is_active=False)
 
-        # ✅ Send verification email
+        
         send_verification_email(user, request)
 
-        logger.info("✅ User registered (inactive): %s", user.username)
+        logger.info("User registered (inactive): %s", user.username)
         return Response(
             {"detail": "Registration successful! Please check your email to verify your account."},
             status=status.HTTP_201_CREATED,
@@ -222,7 +92,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 
-class DebugRegisterView(APIView):
+class DebugRegisterView(APIView):                #for debugging (prints link in console instead of sending)
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -230,7 +100,7 @@ class DebugRegisterView(APIView):
             serializer = UserRegisterSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # ✅ Also inactive here
+           
             user = serializer.save(is_active=False)
 
             send_verification_email(user, request)
@@ -245,32 +115,13 @@ class DebugRegisterView(APIView):
 
 
 # ---------------- LOGIN ----------------
-# @method_decorator(csrf_exempt, name="dispatch")
-# class LoginView(TokenObtainPairView):
-#     serializer_class = CustomTokenObtainPairSerializer
-#     permission_classes = [AllowAny]
-
-
-# @method_decorator(csrf_exempt, name="dispatch")
-# class LoginView(TokenObtainPairView):
-#     serializer_class = CustomTokenObtainPairSerializer
-#     permission_classes = [AllowAny]
-
-#     def post(self, request, *args, **kwargs):
-#         try:
-#             return super().post(request, *args, **kwargs)
-#         except Exception as e:
-#             logger.error("❌ Login crashed: %s | Data: %s", str(e), request.data, exc_info=True)
-#             return Response({"detail": "Server error"}, status=500)
-
-
 @method_decorator(csrf_exempt, name="dispatch")
 class LoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        # Just call the parent implementation
+       
         return super().post(request, *args, **kwargs)
 
 
@@ -282,109 +133,6 @@ class TokenRefreshViewCustom(TokenRefreshView):
 
 
 
-# def send_verification_email(user, request):
-#     uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-#     token = email_verification_token.make_token(user)
-
-#     # URL names MUST match your urls.py pattern
-#     relative_link = reverse("verify-email", kwargs={"uidb64": uidb64, "token": token})
-
-#     FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
-#     absurl = f"{FRONTEND_URL}{relative_link}"
-
-#     email_body = f"Hi {user.username},\nUse this link to verify your email:\n{absurl}"
-#     send_mail(
-#         "Verify your SocialConnect account",
-#         email_body,
-#         settings.DEFAULT_FROM_EMAIL,
-#         [user.email],
-#         fail_silently=False,
-#     )
-
-
-
-
-# def send_verification_email(user, request):
-#     token = generate_email_token(user)
-
-#     FRONTEND_URL = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
-#     verify_url = f"{FRONTEND_URL}/verify-email/{token}/"   # ✅ only token
-
-#     subject = "Verify your SocialConnect account"
-#     message = f"Hi {user.username},\n\nClick to verify your account:\n{verify_url}"
-
-#     send_mail(
-#         subject,
-#         message,
-#         settings.DEFAULT_FROM_EMAIL,
-#         [user.email],
-#         fail_silently=False,
-#     )
-
-
-
-
-
-
-
-# class VerifyEmailView(APIView):
-#     permission_classes = [AllowAny]  # public
-
-#     def get(self, request, uidb64, token):  # <-- uidb64 must match urls.py
-#         try:
-#             uid = smart_str(urlsafe_base64_decode(uidb64))
-#             user = User.objects.get(id=uid)
-#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-#             return Response({"detail": "Invalid UID"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         if PasswordResetTokenGenerator().check_token(user, token):
-#             user.is_active = True
-#             user.save()
-#             return Response({"detail": "Email verified successfully. You can now log in."}, status=status.HTTP_200_OK)
-
-#         return Response({"detail": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-
-# class VerifyEmailView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def get(self, request, uidb64, token):
-#         try:
-#             uid = force_str(urlsafe_base64_decode(uidb64))
-#             user = get_object_or_404(User, pk=uid)
-#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-#             return Response({"error": "Invalid link."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         if email_verification_token.check_token(user, token):
-#             user.is_active = True
-#             user.save()
-#             return Response({"detail": "Email verified successfully. You can now log in."})
-#         return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-# class VerifyEmailView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def get(self, request, uidb64, token):
-#         try:
-#             uid = force_str(urlsafe_base64_decode(uidb64))
-#             user = get_object_or_404(User, pk=uid)
-#         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-#             return Response({"error": "Invalid link."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         if email_verification_token.check_token(user, token):
-#             user.is_active = True
-#             user.save()
-#             return Response({"detail": "Email verified successfully. You can now log in."})
-#         return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -392,7 +140,7 @@ class VerifyEmailView(APIView):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = get_object_or_404(User, pk=uid)
-            print("🔍 Found user:", user.email, "is_active:", user.is_active)
+            print("Found user:", user.email, "is_active:", user.is_active)
         except Exception:
             return Response({"error": "Invalid link."}, status=400)
 
@@ -428,11 +176,11 @@ class UserAvatarUploadView(APIView):
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
         bucket = settings.SUPABASE_AVATAR_BUCKET
 
-        # Unique path per user
+        
         ext = os.path.splitext(file_obj.name)[1].lower()
         key = f"user_{request.user.id}/{uuid4().hex}{ext}"
 
-        # Upload file (v2 client)
+        
         data = file_obj.read()
         supabase.storage.from_(bucket).upload(
             path=key,
@@ -440,10 +188,10 @@ class UserAvatarUploadView(APIView):
             file_options={"contentType": file_obj.content_type, "upsert": "true"},
         )
 
-        # If bucket is public:
+        
         public_url = supabase.storage.from_(bucket).get_public_url(key)
 
-        # Save to profile
+        
         profile = request.user.profile
         profile.avatar_url = public_url
         profile.save(update_fields=["avatar_url"])
@@ -471,7 +219,7 @@ class PublicProfileView(generics.RetrieveAPIView):
         user_id = self.kwargs.get(self.lookup_url_kwarg)
         profile = get_object_or_404(self.queryset, user__id=user_id)
 
-        # Enforce visibility
+        
         vis = profile.visibility
         req_user = self.request.user if self.request.user.is_authenticated else None
 
@@ -523,17 +271,17 @@ class PasswordResetView(APIView):
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         token = token_generator.make_token(user)
 
-        # ✅ FRONTEND link (React route)
+        
         reset_link = f"{FRONTEND_URL}/reset-password/{uidb64}/{token}/"
 
-        # Send email or print in console during dev
+        
         send_mail(
             subject="Password Reset Request",
             message=f"Click the link to reset your password: {reset_link}",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
-        print("Password reset link:", reset_link)  # dev convenience
+        print("Password reset link:", reset_link)  
 
         return Response({"message": "Password reset link sent to email"})
 
@@ -542,7 +290,7 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, uidb64, token):
-        # copy incoming body and inject uid/token from URL
+        
         data = request.data.copy()
         data["uidb64"] = uidb64
         data["token"] = token
@@ -550,7 +298,7 @@ class PasswordResetConfirmView(APIView):
         serializer = PasswordResetConfirmSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
-        # Optional: you can keep the logic here or rely on serializer.save()
+       
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = User.objects.get(pk=uid)
         user.set_password(serializer.validated_data["new_password"])
@@ -595,9 +343,6 @@ class LogoutView(APIView):
 # FOLLOW SYSTEM
 # --------------------------
 
-
-
-
 class SuggestedUserSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
     class Meta:
@@ -605,17 +350,16 @@ class SuggestedUserSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "avatar_url")  
     
     def get_avatar_url(self, obj):
-        # Try common places; return None if not found.
-        # 1) User model has avatar_url attr (custom user)
+        
         if hasattr(obj, "avatar_url"):
             return obj.avatar_url
 
-        # 2) Related profile model: obj.profile.avatar_url
+       
         prof = getattr(obj, "profile", None)
         if prof and hasattr(prof, "avatar_url"):
             return prof.avatar_url
 
-        # 3) If you store a File/ImageField named 'avatar' on user/profile:
+        
         if hasattr(obj, "avatar") and getattr(obj, "avatar"):
             try:
                 return obj.avatar.url
@@ -646,15 +390,15 @@ class SuggestedUsersView(ListAPIView):
 
         # ---- Pick ONE depending on your follow model ----
         following_ids = Follow.objects.filter(follower=me).values_list("following_id", flat=True)
-        # following_ids = me.following.values_list("id", flat=True)  # if ManyToMany
+        # following_ids = me.following.values_list("id", flat=True) 
 
         q = self.request.query_params.get("q")
         qs = (
             User.objects.filter(is_active=True)
             .exclude(id=me.id)
             .exclude(id__in=following_ids)
-            .exclude(is_staff=True)   # 👈 hide staff/admins
-            .exclude(is_superuser=True)  # 👈 hide superusers too
+            .exclude(is_staff=True)   
+            .exclude(is_superuser=True)  
             .order_by("-last_login", "-date_joined")
         )
         if q:
@@ -707,15 +451,6 @@ class UnfollowUserView(APIView):
             return Response({"error": "You are not following this user"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class FollowersListView(generics.ListAPIView):
-#     serializer_class = UserSerializer
-#     permission_classes = [permissions.IsAuthenticated]
-#     def get_queryset(self):
-#         user = User.objects.get(id=self.kwargs["user_id"])
-#         return User.objects.select_related("profile").filter(
-#             id__in=user.followers.values_list("follower", flat=True)
-#         )
-
 
 class FollowersListView(generics.ListAPIView):
     serializer_class = UserSerializer
@@ -728,15 +463,6 @@ class FollowersListView(generics.ListAPIView):
         )
 
 
-
-# class FollowingListView(generics.ListAPIView):
-#     serializer_class = UserSerializer
-#     permission_classes = [permissions.IsAuthenticated]
-#     def get_queryset(self):
-#         user = User.objects.get(id=self.kwargs["user_id"])
-#         return User.objects.select_related("profile").filter(
-#             id__in=user.following.values_list("following", flat=True)
-#         )
 
 class FollowingListView(generics.ListAPIView):
     serializer_class = UserSerializer

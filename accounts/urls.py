@@ -31,8 +31,8 @@ urlpatterns = [
     
 
 
-    # Users root: list & search (?q=) and exact lookup via ?username=
-    path("", PublicUsersRootView.as_view(), name="users-root"),  # NEW -> /api/users/
+    
+    path("", PublicUsersRootView.as_view(), name="users-root"),  
 
     # Current user
     path("me/", UserProfileView.as_view(), name="my_profile"),

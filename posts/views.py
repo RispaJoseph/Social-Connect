@@ -21,7 +21,7 @@ class PostListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         qs = Post.objects.all().order_by("-created_at")
 
-        # Owners see their own posts (even if inactive); others see only active
+        
         if user.is_authenticated:
             from django.db.models import Q
             qs = qs.filter(Q(is_active=True) | Q(author=user))
@@ -49,9 +49,9 @@ class PostListCreateView(generics.ListCreateAPIView):
 
 
     def perform_create(self, serializer):
-        # Keep using request in serializer (needed for upload_image)
+        
         serializer.context["request"] = self.request
-        serializer.save()  # serializer will set author=request.user
+        serializer.save()  
 
 
 class PostRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
@@ -60,7 +60,7 @@ class PostRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        # owners can access their own posts; others only active
+        
         return Post.objects.filter(Q(is_active=True) | Q(author=user))
 
     def get_object(self):
@@ -87,7 +87,7 @@ class LikePostView(generics.GenericAPIView):
         post = generics.get_object_or_404(Post, pk=self.kwargs["post_id"])
         like, created = Like.objects.get_or_create(post=post, user=request.user)
         if not created:
-            # toggle unlike
+            
             like.delete()
             post.like_count = Like.objects.filter(post=post).count()
             post.save(update_fields=["like_count"])
@@ -98,6 +98,8 @@ class LikePostView(generics.GenericAPIView):
         return Response({"detail": "Liked", "like": serializer.data, "like_count": post.like_count}, status=status.HTTP_201_CREATED)
 
 
+
+# checks if current user has liked a post
 class LikeStatusView(APIView):
     permission_classes = [IsAuthenticated]
 

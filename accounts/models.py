@@ -16,7 +16,7 @@ class User(AbstractUser):
     )
     email = models.EmailField(unique=True)
 
-    # New: default inactive
+    
     is_active = models.BooleanField(default=False)
 
     REQUIRED_FIELDS = ["email"]
@@ -91,7 +91,7 @@ class Follow(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("follower", "following")  
+        unique_together = ("follower", "following")  #prevents duplicate follows (can’t follow the same person twice).
 
     def __str__(self):
         return f"{self.follower.username} → {self.following.username}"

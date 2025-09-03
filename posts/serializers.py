@@ -9,16 +9,16 @@ from django.db import transaction
 
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png"}
-MAX_IMAGE_BYTES = 2 * 1024 * 1024  # 2MB
+MAX_IMAGE_BYTES = 2 * 1024 * 1024  
 
 
 class PostSerializer(serializers.ModelSerializer):
     author_username = serializers.CharField(source="author.username", read_only=True)
     author_avatar = serializers.CharField(source="author.profile.avatar_url", read_only=True)
     image = serializers.SerializerMethodField(read_only=True)
-    liked_by_me = serializers.SerializerMethodField()  # ✅ new
+    liked_by_me = serializers.SerializerMethodField()  
 
-    # write-only image upload field
+    
     upload_image = serializers.ImageField(write_only=True, required=False, allow_null=True)
 
     class Meta:
@@ -79,7 +79,7 @@ class PostSerializer(serializers.ModelSerializer):
         content_type = getattr(file, "content_type", None) or ""
         if content_type not in ALLOWED_IMAGE_TYPES:
             raise serializers.ValidationError("Only JPEG and PNG images are allowed.")
-        # Pillow open to ensure it's an actual image
+        
         try:
             im = Image.open(file)
             im.verify()
@@ -93,7 +93,7 @@ class PostSerializer(serializers.ModelSerializer):
         user = request.user
         upload = validated_data.pop("upload_image", None)
 
-        # Ensure we don't leave a half-created post if upload fails
+        
         with transaction.atomic():
             post = Post.objects.create(author=user, is_active=True, **validated_data)
 
@@ -109,7 +109,7 @@ class PostSerializer(serializers.ModelSerializer):
                     post.image_url = public_url
                     post.save(update_fields=["image_url"])
                 except Exception as e:
-                    # Turn storage/network errors into a 400 instead of a 500
+                    
                     raise serializers.ValidationError(
                         {"upload_image": f"Image upload error: {e}"}
                     )
@@ -122,7 +122,7 @@ class PostSerializer(serializers.ModelSerializer):
         upload = validated_data.pop("upload_image", None)
         validated_data.pop("is_active", None)
 
-        # Apply normal field updates
+        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
@@ -165,7 +165,7 @@ class CommentSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         validated_data["author"] = request.user
         comment = super().create(validated_data)
-        # update comment_count on post
+        
         post = comment.post
         post.comment_count = post.comments.filter(is_active=True).count()
         post.save(update_fields=["comment_count"])

@@ -1,4 +1,4 @@
-# accounts/redirects.py (new small helper)
+# (new small helper)
 from django.conf import settings
 from django.shortcuts import redirect
 

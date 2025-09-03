@@ -19,40 +19,9 @@ from posts.models import Post
 User = get_user_model()
 
 
-# -------------------------------------------------------------------
-# USER REGISTRATION
-# -------------------------------------------------------------------
-
-# class UserRegisterSerializer(serializers.ModelSerializer):
-#     password = serializers.CharField(write_only=True, validators=[validate_password])
-
-#     class Meta:
-#         model = User
-#         fields = ("username", "email", "first_name", "last_name", "password")
-
-#     def create(self, validated_data):
-#         # Create inactive user initially
-#         user = User.objects.create_user(
-#             username=validated_data["username"],
-#             email=validated_data["email"],
-#             first_name=validated_data.get("first_name", ""),
-#             last_name=validated_data.get("last_name", ""),
-#             password=validated_data["password"],
-#             # is_active=False  # user inactive until email verification
-#             is_active=True
-#         )
-
-#         # Generate email verification token
-#         token = PasswordResetTokenGenerator().make_token(user)
-#         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-#         verification_link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/verify-email/{uidb64}/{token}/"
-
-#         # Print verification link to console (you can send via email in production)
-#         print(f"Email verification link for {user.email}: {verification_link}")
-
-#         return user
-
-
+# ----------------------------------------------------------------------------------------------------------------------------------
+# USER REGISTRATION - User registers → User object created → Profile auto-created (via signals) → Email verification link generated.
+# -----------------------------------------------------------------------------------------------------------------------------------
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
@@ -82,50 +51,36 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        # ✅ Create inactive user until verification
+        
         user = User.objects.create_user(
             username=validated_data["username"],
             email=validated_data["email"],
             first_name=validated_data.get("first_name", ""),
             last_name=validated_data.get("last_name", ""),
             password=validated_data["password"],
-            is_active=False,  # set inactive until email verification
+            is_active=False,  
         )
 
-        # ✅ Generate verification token
+        
         token = PasswordResetTokenGenerator().make_token(user)
         uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
         verification_link = f"{getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')}/verify-email/{uidb64}/{token}/"
 
-        # Log it (you’re already sending email in production with send_verification_email)
-        print(f"📧 Email verification link for {user.email}: {verification_link}")
+        
+        print(f"Email verification link for {user.email}: {verification_link}")
 
         return user
 
     
 
-# class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-#     """Allow login using username OR email."""
-#     @classmethod
-#     def get_token(cls, user):
-#         token = super().get_token(user)
-#         return token
-
-#     def validate(self, attrs):
-#         username_or_email = attrs.get("username")
-#         password = attrs.get("password")
-#         user = User.objects.filter(Q(username=username_or_email) | Q(email=username_or_email)).first()
-#         if user and user.check_password(password):
-#             attrs["username"] = user.username  # required by SimpleJWT
-#         return super().validate(attrs)
 
 
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Allow login using username OR email with human-readable errors."""
+    """Allow login using username OR email."""
 
-    @classmethod
+    @classmethod                        # Can be called without creating an object. (for get_token - token generation is a class-level operation)
     def get_token(cls, user):
         token = super().get_token(user)
         return token
@@ -139,7 +94,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 {"detail": "Both username/email and password are required."}
             )
 
-        # Find user by username OR email
+        
         user = User.objects.filter(
             Q(username=username_or_email) | Q(email=username_or_email)
         ).first()
@@ -159,9 +114,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 {"detail": "This account is inactive. Please verify your email before logging in."}
             )
 
-        # At this point, authentication is valid → replace username for JWT
+        
         attrs["username"] = user.username  
         return super().validate(attrs)
+
+
 
 
 # -------------------------------------------------------------------
@@ -185,10 +142,10 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
     def get_followers_count(self, obj):
-        return obj.followers_count   # use property from Profile model
+        return obj.followers_count   
 
     def get_following_count(self, obj):
-        return obj.following_count   # use property from Profile model
+        return obj.following_count   
 
     def get_posts_count(self, obj):
         return Post.objects.filter(author=obj.user).count()
@@ -312,7 +269,7 @@ class FollowSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     followers_count = serializers.IntegerField(source="followers.count", read_only=True)
     following_count = serializers.IntegerField(source="following.count", read_only=True)
-    avatar_url = serializers.CharField(source="profile.avatar_url", read_only=True)  # ✅ add this
+    avatar_url = serializers.CharField(source="profile.avatar_url", read_only=True)  
 
     class Meta:
         model = User

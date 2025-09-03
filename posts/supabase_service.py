@@ -1,4 +1,3 @@
-# socialconnect/posts/supabase_service.py
 from supabase import create_client
 from django.conf import settings
 from uuid import uuid4

@@ -8,6 +8,7 @@ class NotificationListCreateView(generics.ListCreateAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    # List all notifications for the logged-in user
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user)
 

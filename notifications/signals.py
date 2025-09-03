@@ -7,19 +7,19 @@ from notifications.models import Notification
 
 User = get_user_model()
 
-# Like notification
+
 @receiver(post_save, sender=Like)
 def create_like_notification(sender, instance, created, **kwargs):
     if created:
         Notification.objects.create(
-            recipient=instance.post.author,   # post owner
-            sender=instance.user,             # who liked
+            recipient=instance.post.author,  
+            sender=instance.user,             
             notification_type='like',
             post=instance.post,
             message=f"{instance.user.username} liked your post"
         )
 
-# Comment notification
+
 @receiver(post_save, sender=Comment)
 def create_comment_notification(sender, instance, created, **kwargs):
     if created:
@@ -32,13 +32,13 @@ def create_comment_notification(sender, instance, created, **kwargs):
         )
 
 
-# Follow notification
+
 @receiver(post_save, sender=Follow)
 def create_follow_notification(sender, instance, created, **kwargs):
     if created:
         Notification.objects.create(
-            recipient=instance.following,     # the person being followed
-            sender=instance.follower,         # the follower
+            recipient=instance.following,     
+            sender=instance.follower,         
             notification_type="follow",
             message=f"{instance.follower.username} started following you"
         )

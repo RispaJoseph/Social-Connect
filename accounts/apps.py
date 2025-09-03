@@ -6,5 +6,6 @@ class AccountsConfig(AppConfig):
     name = 'accounts'
 
 
-    def ready(self):
+    # Profile auto-creation logic
+    def ready(self):                            #signals are connected when the app is initialized.
         import accounts.signals
